@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from app.config import settings
-from app.api import chat
+from app.api import chat, workspace
 
 
 app = FastAPI(
@@ -24,6 +24,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(workspace.router, prefix="/api/v1")
 
 
 @app.get("/")
