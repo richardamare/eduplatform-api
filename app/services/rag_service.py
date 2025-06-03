@@ -166,12 +166,12 @@ class RAGService:
         # Create pgvector extension
         await db.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         
-        # Create cosine similarity function
+        # Create cosine similarity function that returns actual similarity (0-1 range)
         cosine_similarity_sql = """
         CREATE OR REPLACE FUNCTION cosine_similarity(a vector, b vector) 
         RETURNS float AS $$
         BEGIN
-            RETURN (a <=> b);
+            RETURN 1 - (a <=> b) / 2.0;
         END;
         $$ LANGUAGE plpgsql IMMUTABLE STRICT;
         """
@@ -279,37 +279,55 @@ class RAGService:
         # Convert query vector to PostgreSQL vector string format
         query_vector_str = "[" + ",".join(map(str, query_vector)) + "]"
         
+        # First, let's check if we have any vectors at all
+        count_sql = text("SELECT COUNT(*) FROM vectors")
+        count_result = await db.execute(count_sql)
+        vector_count = count_result.scalar()
+        logger.info(f"Total vectors in database: {vector_count}")
+        
         # Execute similarity search
+        # Note: For normalized vectors (like OpenAI embeddings), cosine distance = 2 * (1 - cosine_similarity)
+        # So: cosine_similarity = 1 - (cosine_distance / 2)
+        # Range: distance 0 (identical) -> similarity 1, distance 2 (opposite) -> similarity 0
         sql = text("""
             SELECT 
                 v.id, 
                 s.file_path, 
                 v.snippet,
-                1 - (CAST(v.vector_data AS vector) <=> CAST(:query_vector AS vector)) as similarity
+                1 - (CAST(v.vector_data AS vector) <=> CAST(:query_vector AS vector)) / 2.0 as similarity,
+                CAST(v.vector_data AS vector) <=> CAST(:query_vector AS vector) as distance
             FROM vectors v
             JOIN source_files s ON s.id = v.source_file_id
-            WHERE (1 - (CAST(v.vector_data AS vector) <=> CAST(:query_vector AS vector))) >= :min_similarity
             ORDER BY CAST(v.vector_data AS vector) <=> CAST(:query_vector AS vector)
             LIMIT :limit;
         """)
         
         result = await db.execute(sql, {
             "query_vector": query_vector_str,
-            "limit": limit,
-            "min_similarity": min_similarity
+            "limit": limit
         })
         
         rows = result.fetchall()
         
-        return [
+        # Log results for debugging
+        logger.info(f"Query: '{query_text}'")
+        logger.info(f"Found {len(rows)} results before similarity filtering")
+        for i, row in enumerate(rows):
+            logger.info(f"Result {i+1}: distance={row[4]:.4f}, similarity={row[3]:.4f}, snippet='{row[2][:50]}...'")
+        
+        # Filter by minimum similarity
+        filtered_results = [
             VectorSearchResult(
                 id=row[0],
                 file_path=row[1], 
                 snippet=row[2],
                 similarity=float(row[3])
             )
-            for row in rows
+            for row in rows if float(row[3]) >= min_similarity
         ]
+        
+        logger.info(f"Returning {len(filtered_results)} results after similarity filtering (min_similarity={min_similarity})")
+        return filtered_results
     
     async def get_document_record_by_id(self, db: AsyncSession, vector_id: int) -> Optional[DocumentRecord]:
         """Retrieve a document record by vector ID."""
