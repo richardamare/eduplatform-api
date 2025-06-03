@@ -54,7 +54,7 @@ class WorkspaceService:
         paginated_workspaces = workspaces[skip:skip + limit]
         
         return [
-            WorkspaceResponse(
+            WorkspaceDto(
                 id=workspace.id,
                 name=workspace.name,
                 created_at=workspace.created_at,

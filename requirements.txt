@@ -7,5 +7,12 @@ pydantic==2.5.1
 pydantic-settings==2.1.0
 python-dotenv==1.0.0
 
+# Database
+asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.23
+alembic==1.13.1
+pgvector==0.2.4
+psycopg2-binary==2.9.9
+
 # For testing
 aiohttp==3.9.1 

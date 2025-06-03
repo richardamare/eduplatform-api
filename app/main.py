@@ -2,15 +2,26 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
+from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.api import chat, workspace
+from app.api import chat, workspace, attachment
+from app.database import create_tables, close_db
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup - migrations should be run separately
+    # await create_tables()  # Use alembic migrations instead
+    yield
+    # Shutdown
+    await close_db()
 
 app = FastAPI(
-    title="Simple Chat API",
+    title="Education Platform API",
     version="1.0.0",
-    description="A simple streaming chat API with Azure OpenAI"
+    description="A streaming chat API with PostgreSQL and vector search",
+    lifespan=lifespan
 )
 
 # CORS middleware
@@ -25,6 +36,7 @@ app.add_middleware(
 # Include routers
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(workspace.router, prefix="/api/v1")
+app.include_router(attachment.router, prefix="/api/v1")
 
 
 @app.get("/")
