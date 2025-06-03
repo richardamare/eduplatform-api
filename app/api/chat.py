@@ -1,24 +1,56 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 import json
 from app.services.azure_openai import azure_openai
 from app.services.rag_service import RAGService
+from app.services.repositories import MessageRepository, ChatRepository
+from app.models.message import CreateMessagePayload, MessageRole, MessageDto
+from app.models.chat import ChatDto
 from app.database import get_db
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/chats", tags=["chats"])
 
 
 class ChatMessage(BaseModel):
     message: str
+    chat_id: str = Field(..., alias="chatId")
+
+
+class CreateChatRequest(BaseModel):
+    workspace_id: str = Field(..., alias="workspaceId")
 
 
 @router.post("/stream")
 async def chat_stream(chat_message: ChatMessage, db: AsyncSession = Depends(get_db)):
     """Streaming chat endpoint with RAG context"""
     
+    # Initialize repositories
+    message_repo = MessageRepository(db)
+    chat_repo = ChatRepository(db)
+
+    print('chat_message', chat_message)
+    
+    chat_id = chat_message.chat_id
+        # Verify chat exists
+    existing_chat = await chat_repo.get_by_id(chat_id)
+    if not existing_chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Store user message
+    try:
+        user_msg = await message_repo.create(
+            chat_id,
+            CreateMessagePayload(role=MessageRole.USER, content=chat_message.message)
+        )
+        print(f"Stored user message: {user_msg.id}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to store user message: {str(e)}")
+    
     async def generate_stream():
+        assistant_content = ""  # Accumulate the full assistant response
         try:
             # Simple system prompt
             system_prompt = """
@@ -112,11 +144,34 @@ Be patient, clear, and focused on the student's learning. Your role is to teach,
             # Generate streaming response with context
             async for chunk in azure_openai.chat_completion_stream(messages, context=context):
                 print(chunk)
+                assistant_content += chunk  # Accumulate content
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             
-            yield f"data: {json.dumps({'done': True})}\n\n"
+            # Store the complete assistant message after streaming finishes
+            try:
+                assistant_msg = await message_repo.create(
+                    chat_id,
+                    CreateMessagePayload(role=MessageRole.ASSISTANT, content=assistant_content)
+                )
+                print(f"Stored assistant message: {assistant_msg.id}")
+            except Exception as e:
+                print(f"Failed to store assistant message: {e}")
+                # Don't fail the stream, just log the error
+            
+            yield f"data: {json.dumps({'done': True, 'chat_id': chat_id})}\n\n"
             
         except Exception as e:
+            # Store partial assistant message if any content was accumulated
+            if assistant_content.strip():
+                try:
+                    assistant_msg = await message_repo.create(
+                        chat_id,
+                        CreateMessagePayload(role=MessageRole.ASSISTANT, content=assistant_content)
+                    )
+                    print(f"Stored partial assistant message: {assistant_msg.id}")
+                except Exception as storage_error:
+                    print(f"Failed to store partial assistant message: {storage_error}")
+            
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
     
     return StreamingResponse(
@@ -128,4 +183,42 @@ Be patient, clear, and focused on the student's learning. Your role is to teach,
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "*",
         }
-    ) 
+    )
+
+@router.get("/{chat_id}")
+async def get_chat(chat_id: str, db: AsyncSession = Depends(get_db)) -> ChatDto:
+    """Get a specific chat"""
+    chat_repo = ChatRepository(db)
+    chat = await chat_repo.get_by_id(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return chat
+
+
+@router.get("/{chat_id}/messages")
+async def get_chat_messages(chat_id: str, db: AsyncSession = Depends(get_db)) -> List[MessageDto]:
+    """Get all messages for a specific chat"""
+    message_repo = MessageRepository(db)
+    chat_repo = ChatRepository(db)
+    
+    # Verify chat exists
+    chat = await chat_repo.get_by_id(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Get messages
+    messages = await message_repo.get_by_chat(chat_id)
+    return messages
+
+
+@router.post("", response_model=ChatDto)
+async def create_chat(request: CreateChatRequest, db: AsyncSession = Depends(get_db)) -> ChatDto:
+    """Create a new chat"""
+    chat_repo = ChatRepository(db)
+    
+    try:
+        print('request', request)
+        chat = await chat_repo.create("New name", request.workspace_id)
+        return chat
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create chat: {str(e)}")

@@ -4,6 +4,8 @@ from typing import List
 
 from app.models.workspace import CreateWorkspacePayload, WorkspaceDto
 from app.services.workspace import workspace_service
+from app.services.repositories import ChatRepository
+from app.models.chat import ChatDto
 from app.database import get_db
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
@@ -87,3 +89,9 @@ async def delete_workspace(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.get("/{workspace_id}/chats")
+async def get_workspace_chats(workspace_id: str, db: AsyncSession = Depends(get_db)) -> List[ChatDto]:
+    """Get all chats for a workspace"""
+    chat_repo = ChatRepository(db)
+    return await chat_repo.get_by_workspace(workspace_id)
