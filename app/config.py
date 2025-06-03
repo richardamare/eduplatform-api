@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     
     # Database Configuration
-    database_url: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://account:1dJd5U*kQzvn@ULMAGtHgl1@postgressqlvector.postgres.database.azure.com:5432/postgres?sslmode=require")
+    database_url: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost:5432/eduplatform")
     database_echo: bool = False
     
     # Azure OpenAI
