@@ -5,7 +5,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.api import chat, workspace, attachment, rag
+from app.api import chat, workspace, attachment, rag, flashcard
 from app.database import create_tables, close_db
 
 
@@ -38,6 +38,7 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(workspace.router, prefix="/api/v1")
 app.include_router(attachment.router, prefix="/api/v1")
 app.include_router(rag.router, prefix="/api/v1")
+app.include_router(flashcard.router, prefix="/api/v1")
 
 
 @app.get("/")
