@@ -20,7 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add snippet column to vectors table
-    op.add_column('vectors', sa.Column('snippet', sa.Text(), nullable=False, server_default=''))
+    # op.add_column('vectors', sa.Column('snippet', sa.Text(), nullable=False, server_default=''))
+    pass
 
 
 def downgrade() -> None:

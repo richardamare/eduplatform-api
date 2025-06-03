@@ -20,10 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add created_at column to source_files table if it doesn't exist
-    op.add_column('source_files', sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False))
+    # op.add_column('source_files', sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False))
     
     # Add created_at column to vectors table if it doesn't exist  
-    op.add_column('vectors', sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False))
+    # op.add_column('vectors', sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False))
+    pass
 
 
 def downgrade() -> None:
