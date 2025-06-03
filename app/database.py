@@ -37,7 +37,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def create_tables():
     async with engine.begin() as conn:
         # Enable pgvector extension
-        # await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_vector"))
+        # await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
 async def close_db():

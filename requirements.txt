@@ -15,4 +15,8 @@ pgvector==0.2.4
 psycopg2-binary==2.9.9
 
 # For testing
-aiohttp==3.9.1 
+aiohttp==3.9.1
+
+# Document processing for RAG
+PyPDF2==3.0.1
+python-docx==1.1.0 
