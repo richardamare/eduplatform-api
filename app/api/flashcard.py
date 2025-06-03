@@ -41,28 +41,3 @@ async def generate_flashcards(request: FlashcardRequest):
             detail="Failed to generate flashcards. Please try again."
         )
 
-
-@router.get("", response_model=list[Flashcard])
-async def get_saved_flashcards(
-    workspace_id: str = Query(..., description="Workspace ID to filter flashcards"),
-    topic: Optional[str] = Query(None, description="Filter flashcards by topic")
-):
-    """
-    Retrieve saved flashcards from the database
-    
-    - **workspace_id**: Workspace ID to get flashcards for
-    - **topic**: Optional topic filter to get flashcards for a specific topic
-    """
-    try:
-        flashcards = await flashcard_service.get_saved_flashcards(
-            workspace_id=workspace_id,
-            topic=topic
-        )
-        return flashcards
-        
-    except Exception as e:
-        print(f"Error in get_saved_flashcards endpoint: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve saved flashcards."
-        ) 

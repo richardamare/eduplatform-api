@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
+from app.models.flashcard import FlashcardDto
 from app.models.workspace import CreateWorkspacePayload, WorkspaceDto
+from app.services.flashcard_service import flashcard_service
 from app.services.workspace import workspace_service
 from app.services.repositories import ChatRepository
 from app.models.chat import ChatDto
@@ -95,3 +97,21 @@ async def get_workspace_chats(workspace_id: str, db: AsyncSession = Depends(get_
     """Get all chats for a workspace"""
     chat_repo = ChatRepository(db)
     return await chat_repo.get_by_workspace(workspace_id)
+
+
+@router.get("/{workspace_id}/flashcards", response_model=List[FlashcardDto])
+async def get_workspace_flashcards(workspace_id: str):
+    """Get all flashcards for a workspace"""
+
+    try:
+        flashcards = await flashcard_service.get_saved_flashcards(
+            workspace_id=workspace_id,
+        )
+        return flashcards
+        
+    except Exception as e:
+        print(f"Error in get_saved_flashcards endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve saved flashcards."
+        ) 
