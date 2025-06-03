@@ -15,22 +15,44 @@ class AzureOpenAIService:
     async def chat_completion_stream(
         self, 
         messages: List[Dict[str, str]], 
+        context: str = None,
         temperature: float = None,
         max_tokens: int = None
     ):
-        """Generate streaming chat completion"""
+        """Generate streaming chat completion with optional RAG context"""
         try:
             # Validate that we have required config
             if not all([
                 settings.azure_openai_api_key,
                 settings.azure_openai_endpoint,
-                settings.azure_openai_deployment_name
+                settings.azure_openai_chat_model,
+                settings.azure_openai_embedding_model
             ]):
                 raise ValueError("Missing Azure OpenAI configuration")
+            
+            # Prepare messages with optional context injection
+            processed_messages = messages.copy()
+            
+            # If context is provided, inject it as an assistant message
+            if context:
+                # Find the last system message index, or insert at beginning
+                system_msg_index = -1
+                for i, msg in enumerate(processed_messages):
+                    if msg.get("role") == "system":
+                        system_msg_index = i
+                
+                # Insert context after system message (or at beginning if no system message)
+                context_message = {
+                    "role": "assistant", 
+                    "content": context
+                }
+                processed_messages.insert(system_msg_index + 1, context_message)
+
+            print('processed_messages', processed_messages)
                 
             response = await self.client.chat.completions.create(
-                model=settings.azure_openai_deployment_name,
-                messages=messages,
+                model=settings.azure_openai_chat_model,
+                messages=processed_messages,
                 temperature=temperature or settings.temperature,
                 max_tokens=max_tokens or settings.max_tokens,
                 stream=True

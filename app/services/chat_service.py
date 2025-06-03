@@ -122,7 +122,7 @@ class ChatService:
             
             # Generate response
             response = await self.openai_client.chat.completions.create(
-                model=settings.azure_openai_deployment_name or "gpt-4",
+                model=settings.azure_openai_chat_model,
                 messages=messages_for_ai,
                 max_tokens=settings.max_tokens,
                 temperature=settings.temperature
