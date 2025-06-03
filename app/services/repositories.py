@@ -69,6 +69,16 @@ class ChatRepository:
         chats = result.scalars().all()
         return [ChatDto(**chat.__dict__) for chat in chats]
 
+    async def update_name(self, chat_id: str, name: str) -> bool:
+        result = await self.db.execute(select(ChatDB).where(ChatDB.id == chat_id))
+        chat = result.scalar_one_or_none()
+        if chat:
+            chat.name = name
+            chat.updated_at = datetime.utcnow()
+            await self.db.commit()
+            return True
+        return False
+
     async def delete(self, chat_id: str) -> bool:
         result = await self.db.execute(delete(ChatDB).where(ChatDB.id == chat_id))
         await self.db.commit()
@@ -99,6 +109,13 @@ class MessageRepository:
         )
         messages = result.scalars().all()
         return [MessageDto(**message.__dict__) for message in messages]
+
+    async def count_by_chat(self, chat_id: str) -> int:
+        result = await self.db.execute(
+            select(func.count(MessageDB.id))
+            .where(MessageDB.chat_id == chat_id)
+        )
+        return result.scalar()
 
 class AttachmentRepository:
     def __init__(self, db: AsyncSession):

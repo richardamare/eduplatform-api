@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 import json
+import re
 from app.services.azure_openai import azure_openai
 from app.services.rag_service import RAGService
 from app.services.repositories import MessageRepository, ChatRepository
@@ -12,6 +13,48 @@ from app.models.chat import ChatDto
 from app.database import get_db
 
 router = APIRouter(prefix="/chats", tags=["chats"])
+
+
+def generate_chat_name(ai_response: str) -> str:
+    """Generate a meaningful chat name from AI response"""
+    if not ai_response.strip():
+        return "New Chat"
+    
+    # Extract a meaningful name from the AI response
+    sentences = re.split(r'[.!?]', ai_response)
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    if not sentences:
+        return "New Chat"
+    
+    first_sentence = sentences[0].strip()
+    
+    # Remove common starting phrases
+    clean_sentence = re.sub(
+        r'^(I understand|Let me help|Here\'s|This is|I can help|Sure|Of course|Certainly)\s*,?\s*',
+        '',
+        first_sentence,
+        flags=re.IGNORECASE
+    )
+    
+    # Take first few words and clean up
+    words = clean_sentence.split()
+    title_words = words[:min(5, len(words))]
+    
+    if not title_words:
+        return "New Chat"
+    
+    title = ' '.join(title_words)
+    
+    # Ensure it's not too long and ends properly
+    if len(title) > 50:
+        title = title[:47] + "..."
+    
+    # Capitalize first letter
+    if title:
+        title = title[0].upper() + title[1:] if len(title) > 1 else title.upper()
+    
+    return title
 
 
 class ChatMessage(BaseModel):
@@ -154,6 +197,19 @@ Be patient, clear, and focused on the student's learning. Your role is to teach,
                     CreateMessagePayload(role=MessageRole.ASSISTANT, content=assistant_content)
                 )
                 print(f"Stored assistant message: {assistant_msg.id}")
+                
+                # Check if this is the first message exchange and update chat name
+                try:
+                    message_count = await message_repo.count_by_chat(chat_id)
+                    # If we have exactly 2 messages (user + assistant), this is the first exchange
+                    if message_count == 2 and assistant_content.strip():
+                        new_name = generate_chat_name(assistant_content)
+                        await chat_repo.update_name(chat_id, new_name)
+                        print(f"Updated chat name to: {new_name}")
+                except Exception as name_error:
+                    print(f"Failed to update chat name: {name_error}")
+                    # Don't fail the stream, just log the error
+                    
             except Exception as e:
                 print(f"Failed to store assistant message: {e}")
                 # Don't fail the stream, just log the error
