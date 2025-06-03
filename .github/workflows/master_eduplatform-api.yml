@@ -74,9 +74,21 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_783F20597A2942BDBEFC3854883F0E90 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B3FB89383B284474ABB621B597B2E4CE }}
 
+      - name: Wait before deployment
+        run: sleep 30
+
       - name: "Deploy to Azure Web App"
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
+        with:
+          app-name: "eduplatform-api"
+          slot-name: "Production"
+          startup-command: "python startup.py"
+        continue-on-error: true
+
+      - name: "Retry Deploy to Azure Web App"
+        if: steps.deploy-to-webapp.outcome == 'failure'
+        uses: azure/webapps-deploy@v3
         with:
           app-name: "eduplatform-api"
           slot-name: "Production"
