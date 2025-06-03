@@ -28,6 +28,7 @@ async def chat_stream(chat_message: ChatMessage):
             
             # Generate streaming response
             async for chunk in azure_openai.chat_completion_stream(messages):
+                print(chunk)
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             
             yield f"data: {json.dumps({'done': True})}\n\n"
@@ -37,10 +38,11 @@ async def chat_stream(chat_message: ChatMessage):
     
     return StreamingResponse(
         generate_stream(),
-        media_type="text/plain",
+        media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache", 
             "Connection": "keep-alive",
-            "Content-Type": "text/plain; charset=utf-8"
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
         }
     ) 
