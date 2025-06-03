@@ -41,21 +41,3 @@ async def generate_exam(request: ExamRequest):
             detail="Failed to generate exam. Please try again."
         )
 
-
-@router.get("/{workspace_id}", response_model=List[ExamDto])
-async def get_saved_exams(workspace_id: str):
-    """
-    Get all saved exams for a workspace
-    
-    - **workspace_id**: The workspace ID to get exams for
-    """
-    try:
-        exams = await exam_service.get_saved_exams(workspace_id)
-        return exams
-        
-    except Exception as e:
-        print(f"Error in get_saved_exams endpoint: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve saved exams. Please try again."
-        ) 

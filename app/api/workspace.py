@@ -9,6 +9,8 @@ from app.services.workspace import workspace_service
 from app.services.repositories import ChatRepository
 from app.models.chat import ChatDto
 from app.database import get_db
+from app.services.exam_service import exam_service
+from app.models.exam import ExamDto
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -115,3 +117,17 @@ async def get_workspace_flashcards(workspace_id: str):
             status_code=500,
             detail="Failed to retrieve saved flashcards."
         ) 
+
+
+@router.get("/{workspace_id}/exams", response_model=List[ExamDto])
+async def get_workspace_exams(workspace_id: str):
+    """Get all exams for a workspace"""
+    try:
+        exams = await exam_service.get_saved_exams(workspace_id)
+        return exams
+    except Exception as e:
+        print(f"Error in get_saved_exams endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve saved exams."
+        )
