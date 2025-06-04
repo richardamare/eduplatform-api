@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import AsyncGenerator
 from app.config import settings
 
-print(f"DATABASE_URL being used: {settings.database_url}") # <--- ADD THIS LINE
+
 
 # Create async engine
 engine = create_async_engine(

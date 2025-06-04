@@ -1,351 +1,224 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-import tempfile
-import os
-import logging
-from pathlib import Path
-
-logger = logging.getLogger(__name__)
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.services.rag_service import RAGService
+from app.models.rag import VectorSearchResult
+from app.services.azure_blob_service import get_azure_blob_service, BlobUploadUrl
 from app.services.document_processor import DocumentProcessor
-from app.models.rag import (
-    DocumentRecord, 
-    VectorSearchResult, 
-    VectorInsertRequest, 
-    SimilaritySearchRequest,
-    UploadResponse,
-    ProcessingJob,
-    ProcessingStatus
-)
+import os
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
-# Initialize services
-rag_service = RAGService()
-doc_processor = DocumentProcessor()
+class SimilaritySearchRequest(BaseModel):
+    query: str
+    limit: int = 5
+    min_similarity: float = 0.0
 
-@router.post("/setup")
-async def setup_rag_database(db: AsyncSession = Depends(get_db)):
-    """Initialize RAG database setup (pgvector extension and functions)."""
-    try:
-        await rag_service.ensure_database_setup(db)
-        return {"message": "RAG database setup completed successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Setup failed: {str(e)}")
+class GenerateUploadUrlRequest(BaseModel):
+    fileName: str
+    fileSize: int
+    mimeType: str
 
-@router.post("/upload-file", response_model=UploadResponse)
-async def upload_and_vectorize_file(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    replace_existing: bool = False,
-    db: AsyncSession = Depends(get_db)
-):
-    """Upload a file and process it in the background."""
-    try:
-        logger.info(f"Starting upload for file: {file.filename}")
-        
-        # Read file content
-        file_content = await file.read()
-        logger.info(f"File content read: {len(file_content)} bytes")
-        
-        if len(file_content) == 0:
-            raise HTTPException(status_code=400, detail="Empty file uploaded")
-        
-        # Quick estimate processing time based on file type and size
-        file_size_mb = len(file_content) / (1024 * 1024)
-        if file.filename.lower().endswith('.pdf'):
-            if file_size_mb > 10:
-                estimated_time = "5-15 minutes for large PDFs"
-            else:
-                estimated_time = "2-5 minutes for PDFs"
-        elif file.filename.lower().endswith(('.docx', '.doc')):
-            estimated_time = "1-3 minutes for Word documents"
-        else:
-            estimated_time = "30 seconds - 2 minutes"
-        
-        # Create processing job
-        job = rag_service.create_processing_job(file.filename)
-        logger.info(f"Created processing job: {job.job_id}")
-        
-        # Start background processing immediately
-        background_tasks.add_task(
-            rag_service.process_document_background,
-            job.job_id,
-            file_content,
-            file.filename,
-            db,
-            replace_existing
-        )
-        logger.info(f"Background task started for job: {job.job_id}")
-        
-        # Return immediately
-        return UploadResponse(
-            job_id=job.job_id,
-            file_name=file.filename,
-            status=ProcessingStatus.PENDING,
-            message="File uploaded successfully. Processing started in background.",
-            estimated_processing_time=estimated_time
-        )
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+class ConfirmUploadRequest(BaseModel):
+    blobName: str
+    fileName: str
+    replaceExisting: bool = False
 
-@router.get("/job/{job_id}", response_model=ProcessingJob)
-async def get_processing_status(job_id: str):
-    """Get the status of a background processing job."""
-    job = rag_service.get_processing_job(job_id)
-    
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    return job
-
-@router.get("/jobs")
-async def list_processing_jobs():
-    """List all processing jobs (for debugging)."""
-    return {
-        "jobs": list(rag_service.processing_jobs.values()),
-        "total_jobs": len(rag_service.processing_jobs)
-    }
-
-@router.post("/upload-file-sync")
-async def upload_and_vectorize_file_sync(
-    file: UploadFile = File(...),
-    replace_existing: bool = False,
-    db: AsyncSession = Depends(get_db)
-):
-    """Upload a file and process it synchronously (original behavior)."""
-    try:
-        # Read file content
-        file_content = await file.read()
-        
-        # Process file and extract text chunks
-        chunks = doc_processor.process_file(file_content, file.filename)
-        
-        if not chunks:
-            raise HTTPException(status_code=400, detail="No text content could be extracted from file")
-        
-        # Check if document already exists
-        existing_count = await rag_service.get_document_vector_count(db, file.filename)
-        
-        if existing_count > 0 and not replace_existing:
-            return {
-                "message": f"File {file.filename} already exists with {existing_count} vectors",
-                "action": "skipped",
-                "file_path": file.filename,
-                "existing_vector_count": existing_count,
-                "suggestion": "Use replace_existing=true to overwrite"
-            }
-        
-        # Use upsert method for better handling
-        if replace_existing:
-            result = await rag_service.upsert_document_with_chunks(
-                db=db,
-                file_path=file.filename,
-                text_chunks=chunks
-            )
-        else:
-            await rag_service.insert_document_with_chunks(
-                db=db,
-                file_path=file.filename,
-                text_chunks=chunks
-            )
-            result = {
-                "action": "created",
-                "file_path": file.filename,
-                "chunks_count": len(chunks)
-            }
-        
-        return {
-            "message": f"File {file.filename} processed successfully",
-            **result
-        }
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"File processing failed: {str(e)}")
-
-@router.post("/upsert-file")
-async def upsert_file(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
-):
-    """Upload a file and replace if it already exists (background processing)."""
-    return await upload_and_vectorize_file(
-        background_tasks=background_tasks,
-        file=file,
-        replace_existing=True,
-        db=db
-    )
-
-@router.get("/document-info/{file_path:path}")
-async def get_document_info(
-    file_path: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get information about a document including vector count."""
-    try:
-        exists = await rag_service.document_exists(db, file_path)
-        if not exists:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        vector_count = await rag_service.get_document_vector_count(db, file_path)
-        
-        return {
-            "file_path": file_path,
-            "exists": True,
-            "vector_count": vector_count
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get document info: {str(e)}")
-
-@router.post("/insert-text")
-async def insert_text_record(
-    request: VectorInsertRequest,
-    replace_existing: bool = False,
-    db: AsyncSession = Depends(get_db)
-):
-    """Insert text snippets directly with embeddings."""
-    try:
-        if replace_existing:
-            result = await rag_service.upsert_document_with_chunks(
-                db=db,
-                file_path=request.file_path,
-                text_chunks=request.snippets
-            )
-        else:
-            await rag_service.insert_document_with_chunks(
-                db=db,
-                file_path=request.file_path,
-                text_chunks=request.snippets
-            )
-            result = {
-                "action": "created",
-                "file_path": request.file_path,
-                "chunks_count": len(request.snippets)
-            }
-        
-        return {
-            "message": f"Inserted {len(request.snippets)} text chunks",
-            **result
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Text insertion failed: {str(e)}")
+class ProcessedDocumentResponse(BaseModel):
+    id: str
+    name: str
+    blobName: str
+    workspace_id: str
+    chunks_count: int
+    status: str
+    processed_at: str
 
 @router.post("/search", response_model=List[VectorSearchResult])
-async def search_similar_content(
+async def search_documents(
     request: SimilaritySearchRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Search for similar content using vector similarity."""
+    """Search for similar documents using vector similarity"""
     try:
+        rag_service = RAGService()
         results = await rag_service.search_similar_vectors(
             db=db,
             query_text=request.query,
             limit=request.limit,
             min_similarity=request.min_similarity
         )
-        
         return results
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-@router.get("/search/{query}")
-async def search_similar_content_get(
-    query: str,
-    limit: int = 5,
-    min_similarity: float = 0.0,
-    db: AsyncSession = Depends(get_db)
-):
-    """Search for similar content using GET request."""
+@router.get("/documents")
+async def list_documents(db: AsyncSession = Depends(get_db)):
+    """List all available documents"""
     try:
-        results = await rag_service.search_similar_vectors(
-            db=db,
-            query_text=query,
-            limit=limit,
-            min_similarity=min_similarity
-        )
-        
-        return results
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
-@router.get("/document/{vector_id}")
-async def get_document_by_id(
-    vector_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    """Retrieve a document record by vector ID."""
-    try:
-        record = await rag_service.get_document_record_by_id(db, vector_id)
-        
-        if not record:
-            raise HTTPException(status_code=404, detail="Document not found")
-        
-        return record
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Retrieval failed: {str(e)}")
-
-@router.get("/files")
-async def list_source_files(db: AsyncSession = Depends(get_db)):
-    """List all source files."""
-    try:
+        rag_service = RAGService()
         files = await rag_service.get_all_source_files(db)
         return [{"id": file_id, "file_path": file_path} for file_id, file_path in files]
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve files: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
 
-@router.get("/vectors")
-async def list_all_vectors(db: AsyncSession = Depends(get_db)):
-    """List all vectors (for debugging)."""
+@router.post("/workspaces/{workspace_id}/documents/upload-url", response_model=BlobUploadUrl)
+async def generate_upload_url(
+    workspace_id: str,
+    request: GenerateUploadUrlRequest
+):
+    """Generate a SAS URL for direct client-side upload to Azure Blob Storage"""
     try:
-        vectors = await rag_service.get_all_vectors(db)
+        azure_blob_service = get_azure_blob_service()
+        blob_name = azure_blob_service.generate_unique_blob_name(request.fileName, workspace_id)
         
-        return [
-            {
-                "id": vector_id,
-                "source_file_id": source_file_id,
-                "snippet": snippet[:100] + "..." if len(snippet) > 100 else snippet,
-                "vector_dimensions": len(vector_data) if vector_data else 0
-            }
-            for vector_id, source_file_id, snippet, vector_data in vectors
-        ]
+        upload_url_info = azure_blob_service.create_blob_upload_url(
+            blob_name=blob_name,
+            content_type=request.mimeType,
+            expiry_minutes=180  # 3 hours
+        )
         
+        return upload_url_info
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve vectors: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate upload URL: {str(e)}")
 
-@router.delete("/file/{file_path:path}")
-async def delete_source_file(
-    file_path: str,
+@router.post("/workspaces/{workspace_id}/documents/confirm-upload", response_model=ProcessedDocumentResponse)
+async def confirm_upload_and_process(
+    workspace_id: str,
+    request: ConfirmUploadRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a source file and all its vectors."""
+    """Confirm upload and immediately process document for RAG"""
     try:
-        deleted = await rag_service.delete_source_file(db, file_path)
+        # Initialize services
+        rag_service = RAGService()
+        azure_blob_service = get_azure_blob_service()
+        document_processor = DocumentProcessor()
         
-        if not deleted:
-            raise HTTPException(status_code=404, detail="File not found")
+        # Check if document already exists
+        file_exists = await rag_service.document_exists(db, request.blobName)
         
-        return {"message": f"File {file_path} and all associated vectors deleted"}
+        if file_exists and not request.replaceExisting:
+            raise HTTPException(
+                status_code=409, 
+                detail=f"Document already exists: {request.fileName}. Set replaceExisting=true to replace."
+            )
+        
+        # Download file from blob storage
+        from app.config import settings
+        blob_client = azure_blob_service.blob_service_client.get_blob_client(
+            container=settings.azure_storage_container_name,
+            blob=request.blobName
+        )
+        
+        file_content = blob_client.download_blob().readall()
+        
+        # Process document to extract text chunks
+        text_chunks = document_processor.process_file(file_content, request.fileName)
+        
+        # Insert document with chunks into RAG system
+        await rag_service.insert_document_with_chunks(
+            db=db,
+            file_path=request.blobName,
+            text_chunks=text_chunks,
+            replace_existing=request.replaceExisting
+        )
+        
+        # Return processed document info
+        from datetime import datetime
+        return ProcessedDocumentResponse(
+            id=request.blobName,
+            name=request.fileName,
+            blobName=request.blobName,
+            workspace_id=workspace_id,
+            chunks_count=len(text_chunks),
+            status="completed",
+            processed_at=datetime.utcnow().isoformat()
+        )
         
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+@router.get("/workspaces/{workspace_id}/documents")
+async def list_workspace_documents(workspace_id: str, db: AsyncSession = Depends(get_db)):
+    """List documents within a specific workspace"""
+    try:
+        rag_service = RAGService()
+        files = await rag_service.get_all_source_files(db)
+        # Filter for workspace
+        workspace_files = [
+            {"id": file_id, "file_path": file_path} 
+            for file_id, file_path in files 
+            if file_path.startswith(f"{workspace_id}/")
+        ]
+        return workspace_files
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list workspace documents: {str(e)}")
+
+@router.post("/workspaces/{workspace_id}/search", response_model=List[VectorSearchResult])
+async def search_workspace_documents(
+    workspace_id: str,
+    request: SimilaritySearchRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Search for similar documents within a specific workspace"""
+    try:
+        rag_service = RAGService()
+        # Search all documents first
+        results = await rag_service.search_similar_vectors(
+            db=db,
+            query_text=request.query,
+            limit=request.limit * 3,  # Get more results to filter
+            min_similarity=request.min_similarity
+        )
+        
+        # Filter for workspace and limit results
+        workspace_results = [
+            result for result in results 
+            if result.file_path.startswith(f"{workspace_id}/")
+        ][:request.limit]
+        
+        return workspace_results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Workspace search failed: {str(e)}")
+
+@router.delete("/workspaces/{workspace_id}/documents/{document_id}")
+async def delete_document(
+    workspace_id: str,
+    document_id: str,
+    delete_blob: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a document from RAG system and optionally from blob storage"""
+    try:
+        rag_service = RAGService()
+        
+        # Verify document belongs to workspace
+        if not document_id.startswith(f"{workspace_id}/"):
+            raise HTTPException(status_code=403, detail="Document does not belong to this workspace")
+        
+        # Delete from RAG system
+        success = await rag_service.delete_source_file(db, document_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Optionally delete from blob storage
+        if delete_blob:
+            azure_blob_service = get_azure_blob_service()
+            blob_deleted = azure_blob_service.delete_blob(document_id)
+            if not blob_deleted:
+                # Log warning but don't fail the request
+                import logging
+                logging.warning(f"Failed to delete blob {document_id}, but RAG data was removed")
+        
+        return {"message": f"Document {document_id} deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}") 

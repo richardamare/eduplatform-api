@@ -6,83 +6,14 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import String, DateTime, Text, ForeignKey, Integer, func
-from pgvector.sqlalchemy import Vector
-from datetime import datetime
-from typing import List, Optional
 
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-class Base(DeclarativeBase):
-    pass
-
-# Define models directly here to avoid import conflicts
-class WorkspaceDB(Base):
-    __tablename__ = "workspaces"
-    
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-
-class ChatDB(Base):
-    __tablename__ = "chats"
-    
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    workspace_id: Mapped[str] = mapped_column(String, ForeignKey("workspaces.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-
-class MessageDB(Base):
-    __tablename__ = "messages"
-    
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    chat_id: Mapped[str] = mapped_column(String, ForeignKey("chats.id"), nullable=False)
-    role: Mapped[str] = mapped_column(String, nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-
-class AttachmentDB(Base):
-    __tablename__ = "attachments"
-    
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)
-    azure_blob_path: Mapped[str] = mapped_column(String, nullable=False)
-    workspace_id: Mapped[str] = mapped_column(String, ForeignKey("workspaces.id"), nullable=False)
-    content_vector: Mapped[Optional[Vector]] = mapped_column(Vector(1536), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-
-# RAG models
-class SourceFileDB(Base):
-    __tablename__ = "source_files"
-    
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    file_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-
-class VectorDB(Base):
-    __tablename__ = "vectors"
-    
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_file_id: Mapped[int] = mapped_column(Integer, ForeignKey("source_files.id"), nullable=False)
-    vector_data: Mapped[Vector] = mapped_column(Vector(1536), nullable=False)
-    snippet: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-
-class DataItemDB(Base):
-    __tablename__ = "data_items"
-   
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    type: Mapped[str] = mapped_column(String, nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    workspace_id: Mapped[str] = mapped_column(String, ForeignKey("workspaces.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+# Import the actual models from their proper locations
+from app.database import Base
+from app.models.db_models import ChatDB, MessageDB, WorkspaceDB, AttachmentDB, DataItemDB
+from app.models.rag_models import SourceFileDB, VectorDB
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

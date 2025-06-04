@@ -211,6 +211,18 @@ class AttachmentRepository:
         return results
 
     async def delete(self, attachment_id: str) -> bool:
+        # First get the attachment to retrieve the blob path
+        result = await self.db.execute(select(AttachmentDB).where(AttachmentDB.id == attachment_id))
+        attachment = result.scalar_one_or_none()
+        
+        if not attachment:
+            return False
+        
+        # Delete from Azure Blob Storage
+        from app.services.azure_blob_service import azure_blob_service
+        azure_blob_service.delete_blob(attachment.azure_blob_path)
+        
+        # Delete from database
         result = await self.db.execute(delete(AttachmentDB).where(AttachmentDB.id == attachment_id))
         await self.db.commit()
         return result.rowcount > 0 

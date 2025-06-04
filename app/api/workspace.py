@@ -4,6 +4,7 @@ from typing import List
 
 from app.models.flashcard import FlashcardDto
 from app.models.workspace import CreateWorkspacePayload, WorkspaceDto
+from app.models.rag import SourceFileDto
 from app.services.flashcard_service import flashcard_service
 from app.services.workspace import workspace_service
 from app.services.repositories import ChatRepository
@@ -11,6 +12,7 @@ from app.models.chat import ChatDto
 from app.database import get_db
 from app.services.exam_service import exam_service
 from app.models.exam import ExamDto
+from app.services.rag_service import RAGService
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -131,3 +133,14 @@ async def get_workspace_exams(workspace_id: str):
             status_code=500,
             detail="Failed to retrieve saved exams."
         )
+
+@router.get("/{workspace_id}/files", response_model=List[SourceFileDto])
+async def get_workspace_files(workspace_id: str, db: AsyncSession = Depends(get_db)):
+    """Get all files for a workspace"""
+    try:
+        rag_service = RAGService()
+        files = await rag_service.get_workspace_source_files(db, workspace_id)
+        return files
+    except Exception as e:
+        print(f"Error in get_workspace_files endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

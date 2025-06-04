@@ -16,10 +16,27 @@ class DocumentRecord(BaseModel):
     vector: Optional[List[float]] = None
 
 class VectorSearchResult(BaseModel):
-    id: int
+    vector_id: int
     file_path: str
     snippet: str
     similarity: float
+
+class SourceFileDto(BaseModel):
+    id: int
+    file_path: str
+    file_name: str
+    content_type: str
+    workspace_id: str
+    file_size: Optional[int] = None
+    created_at: datetime
+    chunks_count: Optional[int] = None  # Can be populated separately
+
+class CreateSourceFilePayload(BaseModel):
+    file_path: str
+    file_name: str
+    content_type: str
+    workspace_id: str
+    file_size: Optional[int] = None
 
 class VectorInsertRequest(BaseModel):
     file_path: str

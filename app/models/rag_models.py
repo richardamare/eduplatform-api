@@ -9,7 +9,11 @@ class SourceFileDB(Base):
     __tablename__ = "source_files"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    file_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    file_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # Azure blob path
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)  # Original filename
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)  # MIME type
+    workspace_id: Mapped[str] = mapped_column(String(255), nullable=False)  # Workspace identifier
+    file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # File size in bytes
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     
     # Relationships
@@ -21,7 +25,7 @@ class VectorDB(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_file_id: Mapped[int] = mapped_column(Integer, ForeignKey("source_files.id"), nullable=False)
     vector_data: Mapped[Vector] = mapped_column(Vector(1536), nullable=False)  # OpenAI embedding size
-    snippet: Mapped[str] = mapped_column(Text, nullable=False)
+    content_text: Mapped[str] = mapped_column(Text, nullable=False)  # Changed from snippet to content_text for consistency
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     
     # Relationships

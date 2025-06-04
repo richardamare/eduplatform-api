@@ -17,6 +17,7 @@ class ChatDto(BaseModel):
     """Response model for chat operations"""
     id: str
     name: str
+    workspace_id: str
     created_at: datetime
     updated_at: datetime
 

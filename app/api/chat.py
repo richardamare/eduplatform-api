@@ -82,6 +82,9 @@ async def chat_stream(chat_message: ChatMessage, db: AsyncSession = Depends(get_
     if not existing_chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
+    # Get workspace_id from chat for RAG filtering
+    workspace_id = existing_chat.workspace_id
+    
     # Store user message
     try:
         user_msg = await message_repo.create(
@@ -157,6 +160,7 @@ Be patient, clear, and focused on the student's learning. Your role is to teach,
                 search_results = await rag_service.search_similar_vectors(
                     db, 
                     chat_message.message, 
+                    workspace_id=workspace_id,  # Filter by workspace
                     limit=3,  # Get top 3 most similar chunks
                     min_similarity=0.5  # Only include results with >50% similarity
                 )

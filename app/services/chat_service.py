@@ -71,29 +71,58 @@ class ChatService:
         return user_msg, ai_msg
 
     async def _get_rag_context(self, workspace_id: str, query: str, limit: int = 5) -> str:
-        """Get relevant context from attachments using RAG"""
+        """Get relevant context from RAG documents and attachments using workspace-specific search"""
         try:
-            # Generate embedding for the query
-            embedding_response = await self.openai_client.embeddings.create(
-                input=query,
-                model="text-embedding-ada-002"
-            )
-            query_vector = embedding_response.data[0].embedding
+            from app.services.rag_service import RAGService
             
-            # Search for similar attachments
-            similar_attachments = await self.attachment_repo.vector_similarity_search(
-                query_vector=query_vector,
-                workspace_id=workspace_id,
-                limit=limit,
-                similarity_threshold=0.7
-            )
-            
-            # Build context from similar attachments
             context_parts = []
-            for result in similar_attachments:
-                context_parts.append(f"From {result.attachment.name}: [similarity: {result.similarity_score:.3f}]")
             
-            return "\n".join(context_parts) if context_parts else ""
+            # First, try to get context from RAG documents (blob storage files)
+            try:
+                rag_service = RAGService()
+                rag_results = await rag_service.search_workspace_vectors(
+                    db=self.db,
+                    workspace_id=workspace_id,
+                    query_text=query,
+                    limit=limit,
+                    min_similarity=0.5
+                )
+                
+                for result in rag_results:
+                    # Extract display name from blob path
+                    display_name = result.file_path.split('/')[-1] if '/' in result.file_path else result.file_path
+                    context_parts.append(f"From {display_name} (similarity: {result.similarity:.3f}):\n{result.snippet}")
+                
+                print(f"Found {len(rag_results)} RAG results for workspace {workspace_id}")
+                
+            except Exception as e:
+                print(f"Error searching RAG documents: {e}")
+            
+            # If we have enough context from RAG, use it; otherwise supplement with attachments
+            if len(context_parts) < limit:
+                remaining_limit = limit - len(context_parts)
+                
+                # Generate embedding for the query
+                embedding_response = await self.openai_client.embeddings.create(
+                    input=query,
+                    model="text-embedding-ada-002"
+                )
+                query_vector = embedding_response.data[0].embedding
+                
+                # Search for similar attachments
+                similar_attachments = await self.attachment_repo.vector_similarity_search(
+                    query_vector=query_vector,
+                    workspace_id=workspace_id,
+                    limit=remaining_limit,
+                    similarity_threshold=0.5
+                )
+                
+                for result in similar_attachments:
+                    context_parts.append(f"From attachment {result.attachment.name} (similarity: {result.similarity_score:.3f})")
+                
+                print(f"Found {len(similar_attachments)} attachment results for workspace {workspace_id}")
+            
+            return "\n\n".join(context_parts) if context_parts else ""
             
         except Exception as e:
             print(f"Error getting RAG context: {e}")
