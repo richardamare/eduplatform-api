@@ -1,79 +1,61 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from pydantic import BaseModel, Field
 
 from app.models.flashcard import FlashcardDto
-from app.models.workspace import CreateWorkspacePayload, WorkspaceDto
+from app.models.workspace import WorkspaceDto
 from app.models.rag import SourceFileDto
 from app.services.flashcard_service import flashcard_service
-from app.services.workspace import workspace_service
+from app.services.workspace_service import workspace_service
 from app.services.repositories import ChatRepository
 from app.models.chat import ChatDto
 from app.database import get_db
 from app.services.exam_service import exam_service
 from app.models.exam import ExamDto
 from app.services.rag_service import RAGService
+from app.services.chat_service import chat_service
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
 
+class CreateWorkspaceRequest(BaseModel):
+    name: str = Field(..., alias="name")
+
+
 @router.post("", response_model=WorkspaceDto, status_code=201)
-async def create_workspace(
-    payload: CreateWorkspacePayload, 
-    db: AsyncSession = Depends(get_db)
-):
+async def create_workspace(payload: CreateWorkspaceRequest):
     """Create a new workspace"""
+
     try:
-        workspace = await workspace_service.create_workspace(payload, db)
-        return workspace
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("", response_model=List[WorkspaceDto])
-async def list_workspaces(
-    skip: int = Query(0, ge=0, description="Number of workspaces to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Number of workspaces to return"),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all workspaces with pagination"""
-    try:
-        workspaces = await workspace_service.list_workspaces(db, skip=skip, limit=limit)
-        return workspaces
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/{workspace_id}", response_model=WorkspaceDto)
-async def get_workspace(
-    workspace_id: str, 
-    db: AsyncSession = Depends(get_db)
-):
-    """Get workspace by ID"""
-    try:
-        workspace = await workspace_service.get_workspace(workspace_id, db)
-        if not workspace:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        
-        return workspace
+        return await workspace_service.create_workspace(payload.name)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{workspace_id}", response_model=WorkspaceDto)
-async def update_workspace(
-    workspace_id: str,
-    payload: CreateWorkspacePayload,
-    db: AsyncSession = Depends(get_db)
-):
-    """Update an existing workspace"""
+@router.get("", response_model=List[WorkspaceDto])
+async def list_workspaces():
+    """List all workspaces with pagination"""
+
     try:
-        workspace = await workspace_service.update_workspace(workspace_id, payload, db)
+        return await workspace_service.get_all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{workspace_id}", response_model=WorkspaceDto)
+async def get_workspace(workspace_id: str):
+    """Get workspace by ID"""
+
+    try:
+        workspace = await workspace_service.get_workspace_by_id(workspace_id)
         if not workspace:
             raise HTTPException(status_code=404, detail="Workspace not found")
-        
+
         return workspace
     except HTTPException:
         raise
@@ -82,25 +64,29 @@ async def update_workspace(
 
 
 @router.delete("/{workspace_id}", status_code=204)
-async def delete_workspace(
-    workspace_id: str,
-    db: AsyncSession = Depends(get_db)
-):
+async def delete_workspace(workspace_id: str):
     """Delete a workspace"""
+
     try:
-        deleted = await workspace_service.delete_workspace(workspace_id, db)
+        deleted = await workspace_service.delete_workspace(workspace_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Workspace not found")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{workspace_id}/chats")
-async def get_workspace_chats(workspace_id: str, db: AsyncSession = Depends(get_db)) -> List[ChatDto]:
+async def get_workspace_chats(workspace_id: str) -> List[ChatDto]:
     """Get all chats for a workspace"""
-    chat_repo = ChatRepository(db)
-    return await chat_repo.get_by_workspace(workspace_id)
+
+    try:
+        return await chat_service.get_chats_by_workspace_id(workspace_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{workspace_id}/flashcards", response_model=List[FlashcardDto])
@@ -108,39 +94,35 @@ async def get_workspace_flashcards(workspace_id: str):
     """Get all flashcards for a workspace"""
 
     try:
-        flashcards = await flashcard_service.get_saved_flashcards(
+        return await flashcard_service.get_flashcards_by_workspace_id(
             workspace_id=workspace_id,
         )
-        return flashcards
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error in get_saved_flashcards endpoint: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve saved flashcards."
-        ) 
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{workspace_id}/exams", response_model=List[ExamDto])
 async def get_workspace_exams(workspace_id: str):
     """Get all exams for a workspace"""
+
     try:
-        exams = await exam_service.get_saved_exams(workspace_id)
-        return exams
+        return await exam_service.get_exams_by_workspace_id(workspace_id)
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error in get_saved_exams endpoint: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve saved exams."
-        )
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{workspace_id}/files", response_model=List[SourceFileDto])
-async def get_workspace_files(workspace_id: str, db: AsyncSession = Depends(get_db)):
+async def get_workspace_files(workspace_id: str):
     """Get all files for a workspace"""
+
     try:
         rag_service = RAGService()
-        files = await rag_service.get_workspace_source_files(db, workspace_id)
-        return files
+        return await rag_service.get_source_files_by_workspace_id(workspace_id)
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error in get_workspace_files endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

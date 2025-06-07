@@ -1,43 +1,29 @@
-from fastapi import APIRouter, HTTPException, Query
-from typing import List
-from app.models.exam import ExamRequest, ExamDto
+from fastapi import APIRouter, HTTPException
+from app.models.exam import ExamDto
 from app.services.exam_service import exam_service
+from pydantic import BaseModel, Field
+from typing import Optional
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
 
+class CreateExamRequest(BaseModel):
+    topic: str = Field(..., alias="topic")
+    workspace_id: str = Field(..., alias="workspaceId")
+    num_questions: Optional[int] = Field(default=5)
+
+
 @router.post("", response_model=ExamDto)
-async def generate_exam(request: ExamRequest):
-    """
-    Generate exam questions for a given topic using AI
-    
-    - **topic**: The subject or topic to generate exam questions for
-    - **num_questions**: Number of questions to generate (default: 5)
-    """
+async def generate_exam(request: CreateExamRequest):
+    """Generate exam questions for a given topic using AI"""
+
     try:
-        if not request.topic.strip():
-            raise HTTPException(status_code=400, detail="Topic cannot be empty")
-        
-        if request.num_questions < 1 or request.num_questions > 20:
-            raise HTTPException(
-                status_code=400, 
-                detail="Number of questions must be between 1 and 20"
-            )
-        
-        result = await exam_service.generate_exam(
+        return await exam_service.generate_exam(
             topic=request.topic,
             workspace_id=request.workspace_id,
-            num_questions=request.num_questions
+            num_questions=request.num_questions or 5,
         )
-        
-        return result
-        
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in generate_exam endpoint: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to generate exam. Please try again."
-        )
-
+        raise HTTPException(status_code=500, detail=str(e))

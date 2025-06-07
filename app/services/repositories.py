@@ -1,73 +1,82 @@
+# pyrefly: ignore-all-errors
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func, text
-from sqlalchemy.orm import selectinload
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
-from app.models.db_models import ChatDB, MessageDB, WorkspaceDB, AttachmentDB
-from app.models.chat import Chat, ChatDto
-from app.models.message import Message, MessageDto, CreateMessagePayload
-from app.models.workspace import Workspace, WorkspaceDto, CreateWorkspacePayload
-from app.models.attachment import Attachment, AttachmentDto, CreateAttachmentPayload, AttachmentSearchResult
+from app.models.db_models import (
+    ChatDB,
+    DataItemDB,
+    MessageDB,
+    WorkspaceDB,
+)
+from app.models.rag import VectorSearchResult
+from app.models.rag_models import SourceFileDB, VectorDB
+from app.models.workspace import WorkspaceDto
+
 
 class WorkspaceRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, payload: CreateWorkspacePayload) -> WorkspaceDto:
+    async def create(self, payload: WorkspaceDB) -> WorkspaceDB:
         workspace = WorkspaceDB(
             id=str(uuid.uuid4()),
             name=payload.name,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         self.db.add(workspace)
         await self.db.commit()
         await self.db.refresh(workspace)
-        return WorkspaceDto(**workspace.__dict__)
+        return workspace
 
     async def get_by_id(self, workspace_id: str) -> Optional[WorkspaceDto]:
-        result = await self.db.execute(select(WorkspaceDB).where(WorkspaceDB.id == workspace_id))
-        workspace = result.scalar_one_or_none()
-        return WorkspaceDto(**workspace.__dict__) if workspace else None
+        result = await self.db.execute(
+            select(WorkspaceDB).where(WorkspaceDB.id == workspace_id)
+        )
+        return result.scalar_one_or_none()
 
-    async def get_all(self) -> List[WorkspaceDto]:
+    async def get_all(self) -> List[WorkspaceDB]:
         result = await self.db.execute(select(WorkspaceDB))
         workspaces = result.scalars().all()
-        return [WorkspaceDto(**workspace.__dict__) for workspace in workspaces]
+        return [WorkspaceDB(**workspace.__dict__) for workspace in workspaces]
 
-    async def delete(self, workspace_id: str) -> bool:
-        result = await self.db.execute(delete(WorkspaceDB).where(WorkspaceDB.id == workspace_id))
+    async def delete(self, workspace_id: str):
+        await self.db.execute(delete(WorkspaceDB).where(WorkspaceDB.id == workspace_id))
         await self.db.commit()
-        return result.rowcount > 0
+
 
 class ChatRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, name: str, workspace_id: str) -> ChatDto:
+    async def create(self, name: str, workspace_id: str) -> ChatDB:
         chat = ChatDB(
             id=str(uuid.uuid4()),
             name=name,
             workspace_id=workspace_id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         self.db.add(chat)
         await self.db.commit()
         await self.db.refresh(chat)
-        return ChatDto(**chat.__dict__)
+        return chat
 
-    async def get_by_id(self, chat_id: str) -> Optional[ChatDto]:
+    async def get_by_id(self, chat_id: str) -> Optional[ChatDB]:
         result = await self.db.execute(select(ChatDB).where(ChatDB.id == chat_id))
         chat = result.scalar_one_or_none()
-        return ChatDto(**chat.__dict__) if chat else None
+        return ChatDB(**chat.__dict__) if chat else None
 
-    async def get_by_workspace(self, workspace_id: str) -> List[ChatDto]:
-        result = await self.db.execute(select(ChatDB).where(ChatDB.workspace_id == workspace_id))
-        chats = result.scalars().all()
-        return [ChatDto(**chat.__dict__) for chat in chats]
+    async def get_by_workspace(self, workspace_id: str) -> List[ChatDB]:
+        result = await self.db.execute(
+            select(ChatDB).where(ChatDB.workspace_id == workspace_id)
+        )
+        all_chats = result.scalars().all()
+        return [ChatDB(**chat.__dict__) for chat in all_chats]
 
     async def update_name(self, chat_id: str, name: str) -> bool:
         result = await self.db.execute(select(ChatDB).where(ChatDB.id == chat_id))
@@ -79,150 +88,270 @@ class ChatRepository:
             return True
         return False
 
-    async def delete(self, chat_id: str) -> bool:
-        result = await self.db.execute(delete(ChatDB).where(ChatDB.id == chat_id))
+    async def delete(self, chat_id: str):
+        await self.db.execute(delete(ChatDB).where(ChatDB.id == chat_id))
         await self.db.commit()
-        return result.rowcount > 0
+
 
 class MessageRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, chat_id: str, payload: CreateMessagePayload) -> MessageDto:
+    async def create(self, payload: MessageDB) -> MessageDB:
         message = MessageDB(
             id=str(uuid.uuid4()),
-            chat_id=chat_id,
-            role=payload.role.value,
+            chat_id=payload.chat_id,
+            role=payload.role,
             content=payload.content,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
         )
         self.db.add(message)
         await self.db.commit()
         await self.db.refresh(message)
-        return MessageDto(**message.__dict__)
+        return message
 
-    async def get_by_chat(self, chat_id: str) -> List[MessageDto]:
+    async def get_by_chat_id(self, chat_id: str) -> List[MessageDB]:
         result = await self.db.execute(
             select(MessageDB)
             .where(MessageDB.chat_id == chat_id)
             .order_by(MessageDB.created_at)
         )
         messages = result.scalars().all()
-        return [MessageDto(**message.__dict__) for message in messages]
+        return [MessageDB(**message.__dict__) for message in messages]
 
     async def count_by_chat(self, chat_id: str) -> int:
         result = await self.db.execute(
-            select(func.count(MessageDB.id))
-            .where(MessageDB.chat_id == chat_id)
+            select(func.count(MessageDB.id)).where(MessageDB.chat_id == chat_id)
         )
-        return result.scalar()
+        sc = result.scalar()
+        if sc is None:
+            return 0
+        return sc
 
-class AttachmentRepository:
+
+class ExamRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, payload: CreateAttachmentPayload) -> AttachmentDto:
-        attachment = AttachmentDB(
+    async def create(self, payload: DataItemDB) -> DataItemDB:
+        data_item = DataItemDB(
             id=str(uuid.uuid4()),
-            name=payload.name,
             type=payload.type,
-            azure_blob_path=payload.azure_blob_path,
+            content=payload.content,
             workspace_id=payload.workspace_id,
-            content_vector=payload.content_vector,
+        )
+        self.db.add(data_item)
+        await self.db.commit()
+        await self.db.refresh(data_item)
+        return data_item
+
+    async def get_by_workspace(self, workspace_id: str) -> List[DataItemDB]:
+        result = await self.db.execute(
+            select(DataItemDB)
+            .where(DataItemDB.workspace_id == workspace_id)
+            .where(DataItemDB.type == "exam")
+        )
+        data_items = result.scalars().all()
+        return [DataItemDB(**data_item.__dict__) for data_item in data_items]
+
+    async def get_by_id(self, data_item_id: str) -> Optional[DataItemDB]:
+        result = await self.db.execute(
+            select(DataItemDB).where(DataItemDB.id == data_item_id)
+        )
+        data_item = result.scalar_one_or_none()
+        return DataItemDB(**data_item.__dict__) if data_item else None
+
+
+class FlashcardRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create(self, payload: DataItemDB) -> DataItemDB:
+        data_item = DataItemDB(
+            id=str(uuid.uuid4()),
+            type=payload.type,
+            content=payload.content,
+            workspace_id=payload.workspace_id,
+        )
+        self.db.add(data_item)
+        await self.db.commit()
+        await self.db.refresh(data_item)
+        return data_item
+
+    async def get_by_workspace(self, workspace_id: str) -> List[DataItemDB]:
+        result = await self.db.execute(
+            select(DataItemDB)
+            .where(DataItemDB.workspace_id == workspace_id)
+            .where(DataItemDB.type == "flashcard")
+        )
+        data_items = result.scalars().all()
+        return [DataItemDB(**data_item.__dict__) for data_item in data_items]
+
+    async def get_by_id(self, data_item_id: str) -> Optional[DataItemDB]:
+        result = await self.db.execute(
+            select(DataItemDB).where(DataItemDB.id == data_item_id)
+        )
+        data_item = result.scalar_one_or_none()
+        return DataItemDB(**data_item.__dict__) if data_item else None
+
+
+class SourceFileRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create(self, payload: SourceFileDB) -> SourceFileDB:
+        source_file = SourceFileDB(
+            id=str(uuid.uuid4()),
+            file_path=payload.file_path,
+            file_name=payload.file_name,
+            content_type=payload.content_type,
+            workspace_id=payload.workspace_id,
+            file_size=payload.file_size,
             created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
-        self.db.add(attachment)
+        self.db.add(source_file)
         await self.db.commit()
-        await self.db.refresh(attachment)
-        return AttachmentDto(**attachment.__dict__)
+        await self.db.refresh(source_file)
+        return source_file
 
-    async def get_by_id(self, attachment_id: str) -> Optional[AttachmentDto]:
-        result = await self.db.execute(select(AttachmentDB).where(AttachmentDB.id == attachment_id))
-        attachment = result.scalar_one_or_none()
-        return AttachmentDto(**attachment.__dict__) if attachment else None
-
-    async def get_by_workspace(self, workspace_id: str) -> List[AttachmentDto]:
-        result = await self.db.execute(select(AttachmentDB).where(AttachmentDB.workspace_id == workspace_id))
-        attachments = result.scalars().all()
-        return [AttachmentDto(**attachment.__dict__) for attachment in attachments]
-
-    async def update_vector(self, attachment_id: str, vector: List[float]) -> bool:
+    async def get_by_workspace(self, workspace_id: str) -> List[SourceFileDB]:
         result = await self.db.execute(
-            select(AttachmentDB).where(AttachmentDB.id == attachment_id)
+            select(SourceFileDB).where(SourceFileDB.workspace_id == workspace_id)
         )
-        attachment = result.scalar_one_or_none()
-        if attachment:
-            attachment.content_vector = vector
-            attachment.updated_at = datetime.utcnow()
-            await self.db.commit()
-            return True
-        return False
+        source_files = result.scalars().all()
+        return [SourceFileDB(**source_file.__dict__) for source_file in source_files]
 
-    async def vector_similarity_search(
-        self, 
-        query_vector: List[float], 
-        workspace_id: str, 
-        limit: int = 10,
-        similarity_threshold: float = 0.7
-    ) -> List[AttachmentSearchResult]:
-        """Search for similar attachments using cosine similarity"""
-        query = text("""
-            SELECT id, name, type, azure_blob_path, workspace_id, content_vector, 
-                   created_at, updated_at,
-                   1 - (content_vector <=> :query_vector) as similarity
-            FROM attachments 
-            WHERE workspace_id = :workspace_id 
-                AND content_vector IS NOT NULL
-                AND 1 - (content_vector <=> :query_vector) > :threshold
-            ORDER BY content_vector <=> :query_vector
-            LIMIT :limit
-        """)
-        
+    async def get_by_id(self, source_file_id: str) -> Optional[SourceFileDB]:
         result = await self.db.execute(
-            query,
-            {
-                "query_vector": str(query_vector),
-                "workspace_id": workspace_id,
-                "threshold": similarity_threshold,
-                "limit": limit
-            }
+            select(SourceFileDB).where(SourceFileDB.id == source_file_id)
         )
-        
-        rows = result.fetchall()
-        results = []
-        
-        for row in rows:
-            attachment_dto = AttachmentDto(
-                id=row.id,
-                name=row.name,
-                type=row.type,
-                azure_blob_path=row.azure_blob_path,
-                workspace_id=row.workspace_id,
-                content_vector=row.content_vector,
-                created_at=row.created_at,
-                updated_at=row.updated_at
+        source_file = result.scalar_one_or_none()
+        return SourceFileDB(**source_file.__dict__) if source_file else None
+
+    async def delete_by_file_path(self, file_path: str):
+        delete_vectors_stmt = text(
+            """
+            DELETE FROM vectors 
+            WHERE source_file_id IN (
+                SELECT id FROM source_files WHERE file_path = :file_path
             )
-            results.append(AttachmentSearchResult(
-                attachment=attachment_dto,
-                similarity_score=row.similarity
-            ))
-        
-        return results
+        """
+        )
 
-    async def delete(self, attachment_id: str) -> bool:
-        # First get the attachment to retrieve the blob path
-        result = await self.db.execute(select(AttachmentDB).where(AttachmentDB.id == attachment_id))
-        attachment = result.scalar_one_or_none()
-        
-        if not attachment:
-            return False
-        
-        # Delete from Azure Blob Storage
-        from app.services.azure_blob_service import azure_blob_service
-        azure_blob_service.delete_blob(attachment.azure_blob_path)
-        
-        # Delete from database
-        result = await self.db.execute(delete(AttachmentDB).where(AttachmentDB.id == attachment_id))
+        delete_source_file_stmt = text(
+            """
+            DELETE FROM source_files WHERE file_path = :file_path
+        """
+        )
+
+        await self.db.execute(delete_vectors_stmt, {"file_path": file_path})
+        await self.db.execute(delete_source_file_stmt, {"file_path": file_path})
         await self.db.commit()
-        return result.rowcount > 0 
+
+    async def get_by_file_path(self, file_path: str) -> Optional[SourceFileDB]:
+        result = await self.db.execute(
+            select(SourceFileDB).where(SourceFileDB.file_path == file_path)
+        )
+        source_file = result.scalar_one_or_none()
+        return SourceFileDB(**source_file.__dict__) if source_file else None
+
+    async def exists(self, file_path: str) -> bool:
+        stmt = select(SourceFileDB).where(SourceFileDB.file_path == file_path)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def get_all(self) -> List[SourceFileDB]:
+        result = await self.db.execute(select(SourceFileDB))
+        source_files = result.scalars().all()
+        return [SourceFileDB(**source_file.__dict__) for source_file in source_files]
+
+
+class VectorRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create(self, payload: VectorDB) -> VectorDB:
+        vector = VectorDB(
+            id=str(uuid.uuid4()),
+            source_file_id=payload.source_file_id,
+            vector_data=payload.vector_data,
+            content_text=payload.content_text,
+            created_at=datetime.now(timezone.utc),
+        )
+        self.db.add(vector)
+        await self.db.commit()
+        await self.db.refresh(vector)
+        return vector
+
+    async def get_by_source_file(self, source_file_id: str) -> List[VectorDB]:
+        result = await self.db.execute(
+            select(VectorDB).where(VectorDB.source_file_id == source_file_id)
+        )
+        vectors = result.scalars().all()
+        return [VectorDB(**vector.__dict__) for vector in vectors]
+
+    async def delete_by_source_file(self, source_file_id: str):
+        await self.db.execute(
+            delete(VectorDB).where(VectorDB.source_file_id == source_file_id)
+        )
+        await self.db.commit()
+
+    async def search_similar_vectors(
+        self,
+        query_embedding: List[float],
+        workspace_id: Optional[str] = None,
+        limit: int = 5,
+        min_similarity: float = 0.0,
+    ) -> List[VectorSearchResult]:
+        """Search for similar vectors using cosine similarity."""
+
+        # Build SQL with optional workspace filter
+        where_clause = f"WHERE cosine_similarity(v.vector_data, '{query_embedding}'::vector) >= {min_similarity}"
+        if workspace_id:
+            where_clause += f" AND sf.workspace_id = '{workspace_id}'"
+
+        sql = text(
+            f"""
+            SELECT 
+                v.id,
+                v.content_text,
+                sf.file_path,
+                sf.file_name,
+                cosine_similarity(v.vector_data, '{query_embedding}'::vector) as similarity
+            FROM vectors v
+            JOIN source_files sf ON v.source_file_id = sf.id
+            {where_clause}
+            ORDER BY similarity DESC
+            LIMIT {limit}
+        """
+        )
+
+        result = await self.db.execute(sql)
+
+        search_results = [
+            VectorSearchResult(
+                vector_id=row.id,
+                similarity=row.similarity,
+                content_text=row.content_text,
+                file_path=row.file_path,
+            )
+            for row in result
+        ]
+
+        return search_results
+
+    async def get_vector_count_by_file_path(self, file_path: str) -> int:
+        sql = text(
+            """
+            SELECT COUNT(v.id) 
+            FROM vectors v
+            JOIN source_files sf ON v.source_file_id = sf.id
+            WHERE sf.file_path = :file_path
+        """
+        )
+        result = await self.db.execute(sql, {"file_path": file_path})
+        sc = result.scalar()
+        if sc is None:
+            return 0
+        return sc

@@ -12,7 +12,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the actual models from their proper locations
 from app.database import Base
-from app.models.db_models import ChatDB, MessageDB, WorkspaceDB, AttachmentDB, DataItemDB
+from app.models.db_models import (
+    ChatDB,
+    MessageDB,
+    WorkspaceDB,
+    AttachmentDB,
+    DataItemDB,
+)
 from app.models.rag_models import SourceFileDB, VectorDB
 
 # this is the Alembic Config object, which provides
@@ -50,7 +56,7 @@ def run_migrations_offline() -> None:
     # Convert async URL to sync for alembic
     if database_url.startswith("postgresql+asyncpg://"):
         database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
-    
+
     context.configure(
         url=database_url,
         target_metadata=target_metadata,
@@ -76,7 +82,7 @@ def run_migrations_online() -> None:
     if database_url.startswith("postgresql+asyncpg://"):
         database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
     configuration["sqlalchemy.url"] = database_url
-    
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -84,9 +90,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

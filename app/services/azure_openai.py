@@ -1,78 +1,132 @@
-from openai import AsyncAzureOpenAI
-from typing import List, Dict
+from openai import AsyncAzureOpenAI, AsyncStream
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+)
+from typing import List, Optional, Union, Literal
+import logging
+
+from pydantic import BaseModel
 from app.config import settings
 
 
+class AIMessage(BaseModel):
+    role: Union[str, Literal["system", "user", "assistant"]]
+    content: str
+
+    def to_dict(self):
+        return {"role": self.role, "content": self.content}
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 class AzureOpenAIService:
+    """Service for interacting with Azure OpenAI for chat completions"""
+
     def __init__(self):
-        print(settings)
-        self.client = AsyncAzureOpenAI(
-            api_key=settings.azure_openai_api_key,
-            api_version=settings.azure_openai_api_version,
-            azure_endpoint=settings.azure_openai_endpoint
-        )
-    
-    async def chat_completion_stream(
-        self, 
-        messages: List[Dict[str, str]], 
-        context: str = None,
-        temperature: float = None,
-        max_tokens: int = None
-    ):
-        """Generate streaming chat completion with optional RAG context"""
-        try:
-            # Validate that we have required config
-            if not all([
+        # Validate that we have required config
+        if not all(
+            [
                 settings.azure_openai_api_key,
                 settings.azure_openai_endpoint,
                 settings.azure_openai_chat_model,
-                settings.azure_openai_embedding_model
-            ]):
-                raise ValueError("Missing Azure OpenAI configuration")
-            
+                settings.azure_openai_embedding_model,
+            ]
+        ):
+            logger.error("Missing Azure OpenAI configuration")
+            raise ValueError("Missing Azure OpenAI configuration")
+
+        # Initialize the client
+        self.client = AsyncAzureOpenAI(
+            api_key=settings.azure_openai_api_key,
+            api_version=settings.azure_openai_api_version,
+            azure_endpoint=settings.azure_openai_endpoint,
+        )
+
+    async def chat_completion_stream(
+        self,
+        messages: List[AIMessage],
+        context: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+    ):
+        """Generate streaming chat completion with optional RAG context"""
+
+        try:
             # Prepare messages with optional context injection
             processed_messages = messages.copy()
-            
-            # If context is provided, inject it as an assistant message
-            if context:
-                # Find the last system message index, or insert at beginning
-                system_msg_index = -1
-                for i, msg in enumerate(processed_messages):
-                    if msg.get("role") == "system":
-                        system_msg_index = i
-                
-                # Insert context after system message (or at beginning if no system message)
-                context_message = {
-                    "role": "assistant", 
-                    "content": context
-                }
-                processed_messages.insert(system_msg_index + 1, context_message)
 
-            print('processed_messages', processed_messages)
-                
+            # If context is provided, inject it as an assistant message
+            if context is not None:
+                # Find the last system message index, or insert at beginning
+                last_system_msg_idx = -1
+                for i, msg in enumerate(processed_messages):
+                    if msg.role == "system":
+                        last_system_msg_idx = i
+
+                # Insert context after system message (or at beginning if no system message)
+                context_message = AIMessage(role="assistant", content=context)
+                processed_messages.insert(last_system_msg_idx + 1, context_message)
+
+            # Create the response
             response = await self.client.chat.completions.create(
                 model=settings.azure_openai_chat_model,
-                messages=processed_messages,
-                temperature=temperature or settings.temperature,
-                max_tokens=max_tokens or settings.max_tokens,
-                stream=True
+                messages=self.convert_to_completion_messages(processed_messages),
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
             )
-            
-            async for chunk in response:
-                # Check if chunk has choices and the first choice has delta content
-                if (hasattr(chunk, 'choices') and 
-                    chunk.choices and 
-                    len(chunk.choices) > 0 and 
-                    hasattr(chunk.choices[0], 'delta') and 
-                    chunk.choices[0].delta and 
-                    hasattr(chunk.choices[0].delta, 'content') and 
-                    chunk.choices[0].delta.content):
-                    yield chunk.choices[0].delta.content
-                    
+
+            if isinstance(response, AsyncStream):
+                async for chunk in response:
+                    if isinstance(chunk, ChatCompletionChunk):
+                        for choice in chunk.choices[:1]:
+                            if hasattr(choice, "delta") and choice.delta:
+                                if (
+                                    hasattr(choice.delta, "content")
+                                    and choice.delta.content
+                                ):
+                                    yield choice.delta.content
+
         except Exception as e:
-            print(f"Error in streaming chat completion: {e}")
+            logger.error(f"Error in streaming chat completion: {e}")
             yield f"Error: {str(e)}"
+
+    def convert_to_completion_messages(self, messages: List[AIMessage]) -> List[
+        Union[
+            ChatCompletionSystemMessageParam,
+            ChatCompletionUserMessageParam,
+            ChatCompletionAssistantMessageParam,
+        ]
+    ]:
+        completion_messages: List[
+            Union[
+                ChatCompletionSystemMessageParam,
+                ChatCompletionUserMessageParam,
+                ChatCompletionAssistantMessageParam,
+            ]
+        ] = []
+        for msg in messages:
+            if msg.role == "system":
+                completion_messages.append(
+                    ChatCompletionSystemMessageParam(role="system", content=msg.content)
+                )
+            elif msg.role == "user":
+                completion_messages.append(
+                    ChatCompletionUserMessageParam(role="user", content=msg.content)
+                )
+            elif msg.role == "assistant":
+                completion_messages.append(
+                    ChatCompletionAssistantMessageParam(
+                        role="assistant", content=msg.content
+                    )
+                )
+        return completion_messages
 
 
 # Global instance
-azure_openai = AzureOpenAIService() 
+azure_openai_service = AzureOpenAIService()
