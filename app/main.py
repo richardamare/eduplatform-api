@@ -23,8 +23,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Education Platform API",
-    version="1.0.0",
+    title=settings.api_title,
+    version=settings.api_version,
     description="A streaming chat API with PostgreSQL and vector search",
     lifespan=lifespan,
 )
@@ -50,7 +50,7 @@ app.include_router(exam.router, prefix="/api/v1")
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    return {"message": "EduPlatformAPI is running", "version": "1.0.0"}
+    return {"title": settings.api_title, "version": settings.api_version}
 
 
 @app.get("/health")
