@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from app.database import async_session
-from app.models.db_models import WorkspaceDB
+from app.workspace.db import WorkspaceDB
 from app.workspace.model import WorkspaceDto
 from app.workspace.repository import WorkspaceRepository
 

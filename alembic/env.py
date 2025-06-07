@@ -19,7 +19,7 @@ from app.models.db_models import (
     AttachmentDB,
     DataItemDB,
 )
-from app.models.rag_models import SourceFileDB, VectorDB
+from app.file.db import SourceFileDB, VectorDB
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -6,7 +6,7 @@ from sqlalchemy import select, delete
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from app.models.db_models import WorkspaceDB
+from app.workspace.db import WorkspaceDB
 from app.workspace.model import WorkspaceDto
 
 

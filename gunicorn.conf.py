@@ -21,7 +21,7 @@ accesslog = "-"
 errorlog = "-"
 
 # Process naming
-proc_name = 'rag-chatbot-api'
+proc_name = "eduplatform-api"
 
 # Application
-wsgi_app = "app.main:app" 
+wsgi_app = "app.main:app"

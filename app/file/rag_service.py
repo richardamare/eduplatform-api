@@ -4,10 +4,9 @@ from sqlalchemy import text
 from openai import AsyncAzureOpenAI
 
 from app.database import async_session
-from app.models.rag import VectorSearchResult, SourceFileDto
 from app.config import settings
-
 from app.file.db import VectorDB, SourceFileDB
+from app.file.model import SourceFileDto, VectorSearchResult
 from app.file.repository import VectorRepository, SourceFileRepository
 
 logging.basicConfig(level=logging.INFO)
