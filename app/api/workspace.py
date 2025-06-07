@@ -1,20 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException
 from typing import List
 from pydantic import BaseModel, Field
 
-from app.models.flashcard import FlashcardDto
-from app.models.workspace import WorkspaceDto
-from app.models.rag import SourceFileDto
-from app.services.flashcard_service import flashcard_service
-from app.services.workspace_service import workspace_service
-from app.services.repositories import ChatRepository
-from app.models.chat import ChatDto
-from app.database import get_db
-from app.services.exam_service import exam_service
-from app.models.exam import ExamDto
-from app.services.rag_service import RAGService
-from app.services.chat_service import chat_service
+from app.chat.model import ChatDto
+from app.chat.service import chat_service
+from app.file.model import SourceFileDto
+from app.file.rag_service import rag_service
+from app.generated_content.exam_service import exam_service
+from app.generated_content.flashcard_service import flashcard_service
+from app.generated_content.model import ExamDto, FlashcardDto
+from app.workspace.model import WorkspaceDto
+from app.workspace.service import workspace_service
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -120,7 +116,6 @@ async def get_workspace_files(workspace_id: str):
     """Get all files for a workspace"""
 
     try:
-        rag_service = RAGService()
         return await rag_service.get_source_files_by_workspace_id(workspace_id)
     except HTTPException:
         raise

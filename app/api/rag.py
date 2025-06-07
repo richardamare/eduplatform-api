@@ -4,12 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.services.azure_blob_service import (
+from app.azure.blob_service import (
     azure_blob_service,
     CreateBlobUploadUrlResult,
 )
-from app.services.rag_service import rag_service
-from app.services.document_processor import document_processor
+from app.file.rag_service import rag_service
+from app.file.document_processor import document_processor
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
 

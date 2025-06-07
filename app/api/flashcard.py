@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from app.models.flashcard import FlashcardDto
-from app.services.flashcard_service import flashcard_service
 from pydantic import BaseModel, Field
+
+from app.generated_content.model import FlashcardDto
+from app.generated_content.flashcard_service import flashcard_service
 
 router = APIRouter(prefix="/flashcards", tags=["flashcards"])
 

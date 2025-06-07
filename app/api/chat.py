@@ -1,12 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from typing import List
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-from app.services.chat_service import chat_service
-from app.models.message import MessageDto
-from app.models.chat import ChatDto
-from app.database import get_db
+
+from app.chat.model import ChatDto, MessageDto
+from app.chat.service import chat_service
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -44,7 +42,7 @@ async def chat_stream(payload: ChatMessageRequest):
 
 
 @router.get("/{chat_id}")
-async def get_chat(chat_id: str, db: AsyncSession = Depends(get_db)) -> ChatDto:
+async def get_chat(chat_id: str) -> ChatDto:
     """Get a specific chat"""
 
     try:

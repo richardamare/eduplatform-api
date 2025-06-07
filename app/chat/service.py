@@ -4,13 +4,12 @@ import re
 from textwrap import dedent
 from typing import AsyncGenerator, List, Optional
 
-from app.models.chat import ChatDto
-from app.models.db_models import ChatDB, MessageDB
-from app.models.message import MessageDto, MessageRole
-from app.services.azure_openai import AIMessage, azure_openai_service
-from app.services.rag_service import rag_service
-from app.services.repositories import ChatRepository, MessageRepository
+from app.chat.db import ChatDB, MessageDB
+from app.chat.model import ChatDto, MessageDto, MessageRole
+from app.chat.repository import ChatRepository, MessageRepository
 from app.database import async_session
+from app.azure.openai_service import AIMessage, azure_openai_service
+from app.file.rag_service import rag_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

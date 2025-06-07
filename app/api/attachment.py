@@ -5,12 +5,12 @@ from fastapi import (
 from pydantic import BaseModel, Field
 import os
 
-from app.services.azure_blob_service import (
+from app.azure.blob_service import (
     CreateBlobUploadUrlResult,
     azure_blob_service,
 )
-from app.services.rag_service import rag_service
-from app.services.document_processor import document_processor
+from app.file.rag_service import rag_service
+from app.file.document_processor import document_processor
 from app.models.rag import SourceFileDto
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])

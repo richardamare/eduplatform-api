@@ -1,4 +1,3 @@
-from textwrap import dedent
 from typing import List
 from openai import AsyncAzureOpenAI, AsyncStream
 import logging
@@ -6,33 +5,23 @@ import logging
 from pydantic import BaseModel, ValidationError
 
 from app.config import settings
-from app.models.flashcard import FlashcardDto
-from app.models.db_models import DataItemDB
 from app.database import async_session
-from app.services.azure_openai import AIMessage, azure_openai_service
-from app.services.repositories import FlashcardRepository
+from app.azure.openai_service import AIMessage, azure_openai_service
+from app.generated_content.db import GeneratedContentDB
+from app.generated_content.model import FlashcardDto
+from app.generated_content.repository import FlashcardRepository
+from app.generated_content.constant import FLASHCARD_SYSTEM_PROMPT
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-system_prompt = dedent(
-    """
-    You are a helpful educational assistant. You will be provided with a topic or subject area,
-    and your goal will be to generate relevant flashcard questions and answers.
-    Create questions that test understanding, recall, and application of key concepts.
-    Each question should be clear and concise, with accurate and comprehensive answers.
-    Generate multiple flashcards for the given topic to cover different aspects.
-"""
-).strip()
-
-
-class FlashcardItem(BaseModel):
-    question: str
-    answer: str
-
 
 class FlashcardGenerationResponse(BaseModel):
+    class FlashcardItem(BaseModel):
+        question: str
+        answer: str
+
     items: List[FlashcardItem]
     topic: str
 
@@ -64,7 +53,7 @@ class FlashcardService:
         try:
 
             messages = [
-                AIMessage(role="system", content=system_prompt),
+                AIMessage(role="system", content=FLASHCARD_SYSTEM_PROMPT),
                 AIMessage(
                     role="user",
                     content=f"Generate {num_cards} flashcards for the topic: {topic}",
@@ -96,7 +85,7 @@ class FlashcardService:
 
             # Save flashcards to database
             await self.repository.create(
-                DataItemDB(
+                GeneratedContentDB(
                     type="flashcard",
                     content=flashcard_data.model_dump_json(),
                     workspace_id=workspace_id,
@@ -118,29 +107,29 @@ class FlashcardService:
     ) -> List[FlashcardDto]:
         """Retrieve all data items for a workspace, optionally filtered by type"""
         try:
-            items = await self.repository.get_by_workspace(workspace_id)
+            items = await self.repository.get_by_workspace_id(workspace_id)
 
-            flashcards = []
-            for item in items:
-                item_data = FlashcardGenerationResponse.model_validate_json(
-                    item.content
-                )
-
-                flashcard_dto = FlashcardDto(
-                    items=item_data.items,
-                    total_count=len(item_data.items),
-                    topic=item_data.topic,
-                    workspace_id=workspace_id,
-                )
-                flashcards.append(flashcard_dto)
-
-            return flashcards
+            return [self._map_generated_content_to_dto(item) for item in items]
         except ValidationError as e:
             logger.error(f"Error validating flashcards: {e}")
             raise e
         except Exception as e:
             logger.error(f"Error retrieving flashcards: {e}")
             raise e
+
+    def _map_generated_content_to_dto(
+        self, generated_content: GeneratedContentDB
+    ) -> FlashcardDto:
+        item_data = FlashcardGenerationResponse.model_validate_json(
+            generated_content.content
+        )
+
+        return FlashcardDto(
+            items=item_data.items,
+            total_count=len(item_data.items),
+            topic=item_data.topic,
+            workspace_id=generated_content.workspace_id,
+        )
 
 
 flashcard_service = FlashcardService()

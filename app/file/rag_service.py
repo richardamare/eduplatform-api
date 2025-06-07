@@ -1,14 +1,14 @@
 import logging
 from typing import List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select
+from sqlalchemy import text
 from openai import AsyncAzureOpenAI
 
 from app.database import async_session
-from app.models.rag_models import SourceFileDB, VectorDB
-from app.models.rag import VectorSearchResult, SourceFileDto, CreateSourceFilePayload
-from app.services.repositories import SourceFileRepository, VectorRepository
+from app.models.rag import VectorSearchResult, SourceFileDto
 from app.config import settings
+
+from app.file.db import VectorDB, SourceFileDB
+from app.file.repository import VectorRepository, SourceFileRepository
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException
-from app.models.exam import ExamDto
-from app.services.exam_service import exam_service
 from pydantic import BaseModel, Field
 from typing import Optional
+
+from app.generated_content.model import ExamDto
+from app.generated_content.exam_service import exam_service
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 

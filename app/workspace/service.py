@@ -1,9 +1,9 @@
 from typing import List, Optional
 
-from app.models.workspace import WorkspaceDto
-from app.models.db_models import WorkspaceDB
 from app.database import async_session
-from app.services.repositories import WorkspaceRepository
+from app.models.db_models import WorkspaceDB
+from app.workspace.model import WorkspaceDto
+from app.workspace.repository import WorkspaceRepository
 
 
 class WorkspaceService:
