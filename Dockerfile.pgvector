@@ -1,0 +1,37 @@
+# Dockerfile
+# Use the official PostgreSQL 16 image as the base
+FROM postgres:16
+
+# Install necessary build tools and PostgreSQL development headers
+# These packages are needed to compile pgvector inside the container
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    postgresql-server-dev-16 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone the pgvector repository
+# Use a specific tag or commit for stability, e.g., v0.7.0
+# For simplicity, I'm cloning directly, but for production,
+# consider downloading a release tarball or using git --depth 1
+WORKDIR /tmp/pgvector
+
+RUN git config --global http.sslVerify false
+RUN git clone https://github.com/pgvector/pgvector.git .
+    # Optional: checkout a specific version for stability
+    # && git checkout v0.7.0
+
+# Compile and install pgvector
+# make PG_CONFIG is not needed here as postgresql-server-dev-16
+# sets up the environment correctly within the container.
+RUN make && make install
+
+# Clean up build dependencies and source code to reduce image size
+WORKDIR /
+RUN apt-get remove -y \
+    build-essential \
+    postgresql-server-dev-16 \
+    git \
+    && apt-get autoremove -y \
+    && rm -rf /tmp/pgvector \
+    /var/lib/apt/lists/*

@@ -20,6 +20,7 @@ from app.models.db_models import (
     DataItemDB,
 )
 from app.file.db import SourceFileDB, VectorDB
+from app.generated_content.db import GeneratedContentDB
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
