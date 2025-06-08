@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from app.file.db import VectorDB, SourceFileDB
+from app.file.model import VectorSearchResult
 
 
 class VectorRepository:

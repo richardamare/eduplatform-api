@@ -6,7 +6,7 @@ from sqlalchemy import select, delete, func
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from app.chat.db import ChatDB
+from app.chat.db import ChatDB, MessageDB
 
 
 class ChatRepository:

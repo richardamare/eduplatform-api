@@ -11,11 +11,6 @@ from app.database import close_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup - migrations should be run separately
-    # await create_tables()  # Use alembic migrations instead
-
-    # Start the polling service for blob storage monitoring
-
     yield
 
     # Shutdown
