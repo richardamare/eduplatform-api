@@ -12,15 +12,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the actual models from their proper locations
 from app.database import Base
-from app.models.db_models import (
-    ChatDB,
-    MessageDB,
-    WorkspaceDB,
-    AttachmentDB,
-    DataItemDB,
-)
+from app.workspace.db import WorkspaceDB
 from app.file.db import SourceFileDB, VectorDB
 from app.generated_content.db import GeneratedContentDB
+from app.chat.db import MessageDB, ChatDB
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
