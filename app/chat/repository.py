@@ -14,43 +14,82 @@ class ChatRepository:
         self.db = db
 
     async def create(self, name: str, workspace_id: str) -> ChatDB:
-        chat = ChatDB(
-            id=str(uuid.uuid4()),
-            name=name,
-            workspace_id=workspace_id,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-        self.db.add(chat)
-        await self.db.commit()
-        await self.db.refresh(chat)
-        return chat
+        try:
+            chat = ChatDB(
+                id=str(uuid.uuid4()),
+                name=name,
+                workspace_id=workspace_id,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            self.db.add(chat)
+            await self.db.commit()
+            await self.db.refresh(chat)
+            return chat
+        except Exception as e:
+            logger.error(f"Error creating chat: {e}")
+            raise e
 
     async def get_by_id(self, chat_id: str) -> Optional[ChatDB]:
-        result = await self.db.execute(select(ChatDB).where(ChatDB.id == chat_id))
-        chat = result.scalar_one_or_none()
-        return ChatDB(**chat.__dict__) if chat else None
+        try:
+            result = await self.db.execute(select(ChatDB).where(ChatDB.id == chat_id))
+            chat = result.scalar_one_or_none()
+            return (
+                ChatDB(
+                    id=chat.id,
+                    name=chat.name,
+                    workspace_id=chat.workspace_id,
+                    created_at=chat.created_at,
+                    updated_at=chat.updated_at,
+                )
+                if chat
+                else None
+            )
+        except Exception as e:
+            logger.error(f"Error getting chat by id: {e}")
+            raise e
 
     async def get_by_workspace(self, workspace_id: str) -> List[ChatDB]:
-        result = await self.db.execute(
-            select(ChatDB).where(ChatDB.workspace_id == workspace_id)
-        )
-        all_chats = result.scalars().all()
-        return [ChatDB(**chat.__dict__) for chat in all_chats]
+        try:
+            result = await self.db.execute(
+                select(ChatDB).where(ChatDB.workspace_id == workspace_id)
+            )
+            all_chats = result.scalars().all()
+            return [
+                ChatDB(
+                    id=chat.id,
+                    name=chat.name,
+                    workspace_id=chat.workspace_id,
+                    created_at=chat.created_at,
+                    updated_at=chat.updated_at,
+                )
+                for chat in all_chats
+            ]
+        except Exception as e:
+            logger.error(f"Error getting chats by workspace: {e}")
+            raise e
 
     async def update_name(self, chat_id: str, name: str) -> bool:
-        result = await self.db.execute(select(ChatDB).where(ChatDB.id == chat_id))
-        chat = result.scalar_one_or_none()
-        if chat:
-            chat.name = name
-            chat.updated_at = datetime.utcnow()
-            await self.db.commit()
-            return True
-        return False
+        try:
+            result = await self.db.execute(select(ChatDB).where(ChatDB.id == chat_id))
+            chat = result.scalar_one_or_none()
+            if chat:
+                chat.name = name
+                chat.updated_at = datetime.now()
+                await self.db.commit()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error updating chat name: {e}")
+            raise e
 
     async def delete(self, chat_id: str):
-        await self.db.execute(delete(ChatDB).where(ChatDB.id == chat_id))
-        await self.db.commit()
+        try:
+            await self.db.execute(delete(ChatDB).where(ChatDB.id == chat_id))
+            await self.db.commit()
+        except Exception as e:
+            logger.error(f"Error deleting chat: {e}")
+            raise e
 
 
 class MessageRepository:
@@ -58,32 +97,44 @@ class MessageRepository:
         self.db = db
 
     async def create(self, payload: MessageDB) -> MessageDB:
-        message = MessageDB(
-            id=str(uuid.uuid4()),
-            chat_id=payload.chat_id,
-            role=payload.role,
-            content=payload.content,
-            created_at=datetime.now(timezone.utc),
-        )
-        self.db.add(message)
-        await self.db.commit()
-        await self.db.refresh(message)
-        return message
+        try:
+            message = MessageDB(
+                id=str(uuid.uuid4()),
+                chat_id=payload.chat_id,
+                role=payload.role,
+                content=payload.content,
+                created_at=datetime.now(timezone.utc),
+            )
+            self.db.add(message)
+            await self.db.commit()
+            await self.db.refresh(message)
+            return message
+        except Exception as e:
+            logger.error(f"Error creating message: {e}")
+            raise e
 
     async def get_by_chat_id(self, chat_id: str) -> List[MessageDB]:
-        result = await self.db.execute(
-            select(MessageDB)
-            .where(MessageDB.chat_id == chat_id)
-            .order_by(MessageDB.created_at)
-        )
-        messages = result.scalars().all()
-        return [MessageDB(**message.__dict__) for message in messages]
+        try:
+            result = await self.db.execute(
+                select(MessageDB)
+                .where(MessageDB.chat_id == chat_id)
+                .order_by(MessageDB.created_at)
+            )
+            messages = result.scalars().all()
+            return [MessageDB(**message.__dict__) for message in messages]
+        except Exception as e:
+            logger.error(f"Error getting messages by chat id: {e}")
+            raise e
 
     async def count_by_chat(self, chat_id: str) -> int:
-        result = await self.db.execute(
-            select(func.count(MessageDB.id)).where(MessageDB.chat_id == chat_id)
-        )
-        sc = result.scalar()
-        if sc is None:
-            return 0
-        return sc
+        try:
+            result = await self.db.execute(
+                select(func.count(MessageDB.id)).where(MessageDB.chat_id == chat_id)
+            )
+            sc = result.scalar()
+            if sc is None:
+                return 0
+            return sc
+        except Exception as e:
+            logger.error(f"Error counting messages by chat id: {e}")
+            raise e

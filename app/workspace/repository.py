@@ -1,13 +1,17 @@
 # pyrefly: ignore-all-errors
 
+import logging
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, List
 
 from app.workspace.db import WorkspaceDB
 from app.workspace.model import WorkspaceDto
+
+
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceRepository:
@@ -15,28 +19,54 @@ class WorkspaceRepository:
         self.db = db
 
     async def create(self, payload: WorkspaceDB) -> WorkspaceDB:
-        workspace = WorkspaceDB(
-            id=str(uuid.uuid4()),
-            name=payload.name,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-        self.db.add(workspace)
-        await self.db.commit()
-        await self.db.refresh(workspace)
-        return workspace
+        try:
+            workspace = WorkspaceDB(
+                id=str(uuid.uuid4()),
+                name=payload.name,
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+            self.db.add(workspace)
+            await self.db.commit()
+            await self.db.refresh(workspace)
+            return workspace
+        except Exception as e:
+            logger.error(f"Error creating workspace: {e}")
+            raise e
 
     async def get_by_id(self, workspace_id: str) -> Optional[WorkspaceDto]:
-        result = await self.db.execute(
-            select(WorkspaceDB).where(WorkspaceDB.id == workspace_id)
-        )
-        return result.scalar_one_or_none()
+        try:
+            result = await self.db.execute(
+                select(WorkspaceDB).where(WorkspaceDB.id == workspace_id)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error getting workspace by id: {e}")
+            raise e
 
     async def get_all(self) -> List[WorkspaceDB]:
-        result = await self.db.execute(select(WorkspaceDB))
-        workspaces = result.scalars().all()
-        return [WorkspaceDB(**workspace.__dict__) for workspace in workspaces]
+        try:
+            result = await self.db.execute(select(WorkspaceDB))
+            workspaces = result.scalars().all()
+            return [
+                WorkspaceDB(
+                    id=workspace.id,
+                    name=workspace.name,
+                    created_at=workspace.created_at,
+                    updated_at=workspace.updated_at,
+                )
+                for workspace in workspaces
+            ]
+        except Exception as e:
+            logger.error(f"Error getting all workspaces: {e}")
+            raise e
 
     async def delete(self, workspace_id: str):
-        await self.db.execute(delete(WorkspaceDB).where(WorkspaceDB.id == workspace_id))
-        await self.db.commit()
+        try:
+            await self.db.execute(
+                delete(WorkspaceDB).where(WorkspaceDB.id == workspace_id)
+            )
+            await self.db.commit()
+        except Exception as e:
+            logger.error(f"Error deleting workspace: {e}")
+            raise e

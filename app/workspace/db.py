@@ -22,6 +22,6 @@ class WorkspaceDB(Base):
     chats: Mapped[List["ChatDB"]] = relationship(
         "ChatDB", back_populates="workspace", cascade="all, delete-orphan"
     )
-    attachments: Mapped[List["AttachmentDB"]] = relationship(
-        "AttachmentDB", back_populates="workspace", cascade="all, delete-orphan"
+    files: Mapped[List["SourceFileDB"]] = relationship(
+        "SourceFileDB", back_populates="workspace", cascade="all, delete-orphan"
     )

@@ -1,9 +1,14 @@
+import logging
 from typing import List, Optional
 
 from app.database import async_session
 from app.workspace.db import WorkspaceDB
 from app.workspace.model import WorkspaceDto
 from app.workspace.repository import WorkspaceRepository
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceService:
@@ -14,18 +19,22 @@ class WorkspaceService:
 
     async def create_workspace(self, name: str) -> WorkspaceDto:
         """Create a new workspace"""
-        workspace = await self.repository.create(
-            WorkspaceDB(
-                name=name,
+        try:
+            workspace = await self.repository.create(
+                WorkspaceDB(
+                    name=name,
+                )
             )
-        )
 
-        return WorkspaceDto(
-            id=workspace.id,
-            name=workspace.name,
-            created_at=workspace.created_at,
-            updated_at=workspace.updated_at,
-        )
+            return WorkspaceDto(
+                id=workspace.id,
+                name=workspace.name,
+                created_at=workspace.created_at,
+                updated_at=workspace.updated_at,
+            )
+        except Exception as e:
+            logger.error(f"Error creating workspace: {e}")
+            raise e
 
     async def get_workspace_by_id(self, workspace_id: str) -> Optional[WorkspaceDto]:
         """Get workspace by ID"""

@@ -20,7 +20,7 @@ class SourceFileDB(Base):
     )  # Original filename
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)  # MIME type
     workspace_id: Mapped[str] = mapped_column(
-        String(255), nullable=False
+        String(255), ForeignKey("workspaces.id"), nullable=False
     )  # Workspace identifier
     file_size: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
@@ -28,6 +28,9 @@ class SourceFileDB(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     # Relationships
+    workspace: Mapped["WorkspaceDB"] = relationship(
+        "WorkspaceDB", back_populates="files"
+    )
     vectors: Mapped[List["VectorDB"]] = relationship(
         "VectorDB", back_populates="source_file", cascade="all, delete-orphan"
     )
