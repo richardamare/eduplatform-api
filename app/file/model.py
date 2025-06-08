@@ -19,3 +19,9 @@ class SourceFileDto(BaseModel):
     file_size: Optional[int] = None
     created_at: datetime
     chunks_count: Optional[int] = None  # Can be populated separately
+
+
+class GenerateUploadUrlDto(BaseModel):
+    upload_url: str
+    blob_name: str
+    expiry_minutes: int

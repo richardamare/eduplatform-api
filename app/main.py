@@ -5,7 +5,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.api import chat, workspace, attachment, rag, flashcard, exam
+from app.api import chat, workspace, files, flashcard, exam
 from app.database import close_db
 
 
@@ -41,8 +41,7 @@ app.add_middleware(
 # Include routers
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(workspace.router, prefix="/api/v1")
-app.include_router(attachment.router, prefix="/api/v1")
-app.include_router(rag.router, prefix="/api/v1")
+app.include_router(files.router, prefix="/api/v1")
 app.include_router(flashcard.router, prefix="/api/v1")
 app.include_router(exam.router, prefix="/api/v1")
 
