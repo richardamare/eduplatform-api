@@ -2,9 +2,11 @@ import logging
 import os
 
 from app.azure.blob_service import azure_blob_service
+from app.database import async_session
 from app.file.document_processor import document_processor
 from app.file.model import GenerateUploadUrlDto
 from app.file.rag_service import rag_service
+from app.file.repository import SourceFileRepository
 
 
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class FileService:
     def __init__(self):
-        pass
+        self.source_file_repository = SourceFileRepository(async_session())
 
     async def generate_upload_url(
         self, file_name: str, content_type: str, workspace_id: str
@@ -79,6 +81,9 @@ class FileService:
             logger.info(f"Inserted file: {file_name}")
         except Exception as e:
             raise Exception(f"Error processing job: {e}")
+
+    async def get_source_file_by_file_path(self, file_path: str):
+        return await self.source_file_repository.get_by_file_path(file_path)
 
 
 file_service = FileService()

@@ -82,6 +82,12 @@ class AzureBlobService:
             account_name = self.blob_service_client.account_name
             account_key = self.blob_service_client.credential.account_key
 
+            print("account_name", account_name)
+            print("account_key", account_key)
+            print("blob_name", blob_name)
+            print("content_type", content_type)
+            print("expiry_minutes", expiry_minutes)
+
             sas_token = generate_blob_sas(
                 account_name=account_name,
                 container_name=settings.azure_storage_container_name,
@@ -89,8 +95,10 @@ class AzureBlobService:
                 account_key=account_key,
                 permission=BlobSasPermissions(write=True, create=True),
                 expiry=datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
-                content_type=content_type,
+                # content_type=content_type,
             )
+
+            print("sas_token", sas_token)
 
             upload_url = (
                 f"https://{account_name}.blob.core.windows.net/"

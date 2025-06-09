@@ -26,12 +26,7 @@ class WorkspaceService:
                 )
             )
 
-            return WorkspaceDto(
-                id=workspace.id,
-                name=workspace.name,
-                created_at=workspace.created_at,
-                updated_at=workspace.updated_at,
-            )
+            return self._map_to_workspace_dto(workspace)
         except Exception as e:
             logger.error(f"Error creating workspace: {e}")
             raise e
@@ -43,31 +38,26 @@ class WorkspaceService:
         if not workspace:
             return None
 
-        return WorkspaceDto(
-            id=workspace.id,
-            name=workspace.name,
-            created_at=workspace.created_at,
-            updated_at=workspace.updated_at,
-        )
+        return self._map_to_workspace_dto(workspace)
 
     async def get_all(self) -> List[WorkspaceDto]:
         """List all workspaces with pagination"""
         workspaces = await self.repository.get_all()
 
-        return [
-            WorkspaceDto(
-                id=workspace.id,
-                name=workspace.name,
-                created_at=workspace.created_at,
-                updated_at=workspace.updated_at,
-            )
-            for workspace in workspaces
-        ]
+        return [self._map_to_workspace_dto(workspace) for workspace in workspaces]
 
     async def delete_workspace(self, workspace_id: str):
         """Delete a workspace"""
 
         await self.repository.delete(workspace_id)
+
+    def _map_to_workspace_dto(self, workspace: WorkspaceDB) -> WorkspaceDto:
+        return WorkspaceDto(
+            id=str(workspace.id),
+            name=workspace.name,
+            created_at=workspace.created_at,
+            updated_at=workspace.updated_at,
+        )
 
 
 # Global instance

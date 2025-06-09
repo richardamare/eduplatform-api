@@ -1,7 +1,7 @@
 # pyrefly: ignore-all-errors
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, DateTime, Text, ForeignKey, Integer, func
+from sqlalchemy import String, DateTime, Text, ForeignKey, Integer, func, UUID
 from pgvector.sqlalchemy import Vector
 from app.database import Base
 from datetime import datetime
@@ -11,7 +11,7 @@ from typing import List, Optional
 class SourceFileDB(Base):
     __tablename__ = "source_files"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[UUID] = mapped_column(UUID, primary_key=True)
     file_path: Mapped[str] = mapped_column(
         Text, nullable=False, unique=True
     )  # Azure blob path
@@ -19,8 +19,8 @@ class SourceFileDB(Base):
         String(255), nullable=False
     )  # Original filename
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)  # MIME type
-    workspace_id: Mapped[str] = mapped_column(
-        String(255), ForeignKey("workspaces.id"), nullable=False
+    workspace_id: Mapped[UUID] = mapped_column(
+        UUID, ForeignKey("workspaces.id"), nullable=False
     )  # Workspace identifier
     file_size: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
@@ -39,9 +39,9 @@ class SourceFileDB(Base):
 class VectorDB(Base):
     __tablename__ = "vectors"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_file_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("source_files.id"), nullable=False
+    id: Mapped[UUID] = mapped_column(UUID, primary_key=True)
+    source_file_id: Mapped[UUID] = mapped_column(
+        UUID, ForeignKey("source_files.id"), nullable=False
     )
     vector_data: Mapped[Vector] = mapped_column(
         Vector(1536), nullable=False

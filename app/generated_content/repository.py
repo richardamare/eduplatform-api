@@ -15,7 +15,7 @@ class ExamRepository:
     async def create(self, payload: GeneratedContentDB) -> GeneratedContentDB:
         try:
             data_item = GeneratedContentDB(
-                id=str(uuid.uuid4()),
+                id=uuid.uuid4(),
                 type=payload.type,
                 content=payload.content,
                 workspace_id=payload.workspace_id,
@@ -81,7 +81,7 @@ class FlashcardRepository:
     async def create(self, payload: GeneratedContentDB) -> GeneratedContentDB:
         try:
             data_item = GeneratedContentDB(
-                id=str(uuid.uuid4()),
+                id=uuid.uuid4(),
                 type=payload.type,
                 content=payload.content,
                 workspace_id=payload.workspace_id,

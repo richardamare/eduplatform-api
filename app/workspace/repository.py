@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Optional, List
 
 from app.workspace.db import WorkspaceDB
-from app.workspace.model import WorkspaceDto
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +20,7 @@ class WorkspaceRepository:
     async def create(self, payload: WorkspaceDB) -> WorkspaceDB:
         try:
             workspace = WorkspaceDB(
-                id=str(uuid.uuid4()),
+                id=uuid.uuid4(),
                 name=payload.name,
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
@@ -34,7 +33,7 @@ class WorkspaceRepository:
             logger.error(f"Error creating workspace: {e}")
             raise e
 
-    async def get_by_id(self, workspace_id: str) -> Optional[WorkspaceDto]:
+    async def get_by_id(self, workspace_id: str) -> Optional[WorkspaceDB]:
         try:
             result = await self.db.execute(
                 select(WorkspaceDB).where(WorkspaceDB.id == workspace_id)

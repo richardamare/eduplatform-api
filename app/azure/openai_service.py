@@ -40,11 +40,19 @@ class AzureOpenAIService:
             logger.error("Missing Azure OpenAI configuration")
             raise ValueError("Missing Azure OpenAI configuration")
 
+        print("settings.azure_openai_api_key", settings.azure_openai_api_key)
+        print("settings.azure_openai_endpoint", settings.azure_openai_endpoint)
+        print("settings.azure_openai_chat_model", settings.azure_openai_chat_model)
+        print(
+            "settings.azure_openai_embedding_model",
+            settings.azure_openai_embedding_model,
+        )
+
         # Initialize the client
         self.client = AsyncAzureOpenAI(
-            api_key=settings.azure_openai_api_key,
-            api_version=settings.azure_openai_api_version,
-            azure_endpoint=settings.azure_openai_endpoint,
+            api_key="BnFWGEUTOT7R7GTocrq96v50Ubyx0pXre9TzoVTDcwknxwpW5hLeJQQJ99BFACHYHv6XJ3w3AAAAACOGoP7J",
+            api_version="2024-12-01-preview",
+            azure_endpoint="https://richa-mbp0u9iy-eastus2.cognitiveservices.azure.com/",
         )
 
     async def chat_completion_stream(

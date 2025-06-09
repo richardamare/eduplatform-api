@@ -14,10 +14,6 @@ class ChatMessageRequest(BaseModel):
     chat_id: str = Field(..., alias="chatId")
 
 
-class CreateChatRequest(BaseModel):
-    workspace_id: str = Field(..., alias="workspaceId")
-
-
 @router.post("/stream")
 async def chat_stream(payload: ChatMessageRequest):
     """Streaming chat endpoint with RAG context"""
@@ -73,11 +69,16 @@ async def get_chat_messages(chat_id: str) -> List[MessageDto]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class CreateChatRequest(BaseModel):
+    workspace_id: str = Field(..., alias="workspaceId")
+
+
 @router.post("", response_model=ChatDto)
 async def create_chat(request: CreateChatRequest) -> ChatDto:
     """Create a new chat"""
 
     try:
+        print(request)
         chat = await chat_service.create_chat("New name", request.workspace_id)
         return chat
     except HTTPException:

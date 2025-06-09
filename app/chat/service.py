@@ -3,6 +3,7 @@ import logging
 import re
 from textwrap import dedent
 from typing import AsyncGenerator, List, Optional
+import uuid
 
 from app.chat.db import ChatDB, MessageDB
 from app.chat.model import ChatDto, MessageDto, MessageRole
@@ -75,29 +76,45 @@ class ChatService:
         self.message_repository = MessageRepository(async_session())
 
     async def create_chat(self, name: str, workspace_id: str) -> ChatDto:
-        chat = await self.chat_repository.create(name, workspace_id)
-        return self._map_chat_to_dto(chat)
+        try:
+            chat = await self.chat_repository.create(name, uuid.UUID(workspace_id))
+            return self._map_chat_to_dto(chat)
+        except Exception as e:
+            logger.error(f"Error creating chat: {e}")
+            raise e
 
     async def get_by_id(self, chat_id: str) -> Optional[ChatDto]:
-        chat = await self.chat_repository.get_by_id(chat_id)
-        if not chat:
-            return None
-        return self._map_chat_to_dto(chat)
+        try:
+            chat = await self.chat_repository.get_by_id(uuid.UUID(chat_id))
+            if not chat:
+                return None
+            return self._map_chat_to_dto(chat)
+        except Exception as e:
+            logger.error(f"Error getting chat by id: {e}")
+            raise e
 
     async def get_messages_by_chat_id(self, chat_id: str) -> List[MessageDto]:
-        messages = await self.message_repository.get_by_chat_id(chat_id)
-        return [self._map_message_to_dto(message) for message in messages]
+        try:
+            messages = await self.message_repository.get_by_chat_id(uuid.UUID(chat_id))
+            return [self._map_message_to_dto(message) for message in messages]
+        except Exception as e:
+            logger.error(f"Error getting messages by chat id: {e}")
+            raise e
 
     async def get_chats_by_workspace_id(self, workspace_id: str) -> List[ChatDto]:
-        chats = await self.chat_repository.get_by_workspace(workspace_id)
-        return [self._map_chat_to_dto(chat) for chat in chats]
+        try:
+            chats = await self.chat_repository.get_by_workspace(uuid.UUID(workspace_id))
+            return [self._map_chat_to_dto(chat) for chat in chats]
+        except Exception as e:
+            logger.error(f"Error getting chats by workspace id: {e}")
+            raise e
 
     async def stream(
         self, user_message: str, chat_id: str
     ) -> AsyncGenerator[str, None]:
         """Stream a chat response"""
         try:
-            existing_chat = await self.chat_repository.get_by_id(chat_id)
+            existing_chat = await self.chat_repository.get_by_id(uuid.UUID(chat_id))
             if not existing_chat:
                 raise Exception("Chat not found")
 
@@ -105,13 +122,13 @@ class ChatService:
                 MessageDB(
                     content=user_message,
                     role=MessageRole.USER,
-                    chat_id=chat_id,
+                    chat_id=uuid.UUID(chat_id),
                 )
             )
 
             return self._generate_stream(
                 user_message=user_message,
-                workspace_id=existing_chat.workspace_id,
+                workspace_id=str(existing_chat.workspace_id),
                 chat_id=chat_id,
             )
         except Exception as e:
@@ -163,17 +180,21 @@ class ChatService:
             try:
                 assistant_msg = await self.message_repository.create(
                     MessageDB(
-                        chat_id=chat_id,
+                        chat_id=uuid.UUID(chat_id),
                         role=MessageRole.ASSISTANT,
                         content=assistant_content,
                     )
                 )
 
                 try:
-                    message_count = await self.message_repository.count_by_chat(chat_id)
+                    message_count = await self.message_repository.count_by_chat(
+                        uuid.UUID(chat_id)
+                    )
                     if message_count == 2 and assistant_content.strip():
                         new_name = self._generate_chat_name(assistant_content)
-                        await self.chat_repository.update_name(chat_id, new_name)
+                        await self.chat_repository.update_name(
+                            uuid.UUID(chat_id), new_name
+                        )
                         print(f"Updated chat name to: {new_name}")
                 except Exception as name_error:
                     logger.error(f"Failed to update chat name: {name_error}")
@@ -186,7 +207,7 @@ class ChatService:
                 try:
                     assistant_msg = await self.message_repository.create(
                         MessageDB(
-                            chat_id=chat_id,
+                            chat_id=uuid.UUID(chat_id),
                             role=MessageRole.ASSISTANT,
                             content=assistant_content,
                         )
@@ -242,16 +263,17 @@ class ChatService:
 
     def _map_chat_to_dto(self, chat: ChatDB) -> ChatDto:
         return ChatDto(
-            id=chat.id,
+            id=str(chat.id),
             name=chat.name,
-            workspace_id=chat.workspace_id,
+            workspace_id=str(chat.workspace_id),
             created_at=chat.created_at,
+            updated_at=chat.updated_at,
         )
 
     def _map_message_to_dto(self, message: MessageDB) -> MessageDto:
         return MessageDto(
-            id=message.id,
-            chat_id=message.chat_id,
+            id=str(message.id),
+            chat_id=str(message.chat_id),
             role=message.role,
             content=message.content,
             created_at=message.created_at,

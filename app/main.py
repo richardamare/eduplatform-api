@@ -9,6 +9,9 @@ from app.api import chat, workspace, files, flashcard, exam
 from app.database import close_db
 
 
+print("settings", settings)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield

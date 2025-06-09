@@ -21,7 +21,7 @@ class VectorRepository:
     async def create(self, payload: VectorDB) -> VectorDB:
         try:
             vector = VectorDB(
-                id=str(uuid.uuid4()),
+                id=uuid.uuid4(),
                 source_file_id=payload.source_file_id,
                 vector_data=payload.vector_data,
                 content_text=payload.content_text,
@@ -139,7 +139,7 @@ class SourceFileRepository:
     async def create(self, payload: SourceFileDB) -> SourceFileDB:
         try:
             source_file = SourceFileDB(
-                id=str(uuid.uuid4()),
+                id=uuid.uuid4(),
                 file_path=payload.file_path,
                 file_name=payload.file_name,
                 content_type=payload.content_type,
@@ -183,6 +183,16 @@ class SourceFileRepository:
             return SourceFileDB(**source_file.__dict__) if source_file else None
         except Exception as e:
             logger.error(f"Error getting source file by id: {e}")
+            raise e
+
+    async def get_by_file_path(self, file_path: str) -> Optional[SourceFileDB]:
+        try:
+            result = await self.db.execute(
+                select(SourceFileDB).where(SourceFileDB.file_path == file_path)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error getting source file by file path: {e}")
             raise e
 
     async def delete_by_file_path(self, file_path: str):

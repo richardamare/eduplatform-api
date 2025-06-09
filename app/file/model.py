@@ -11,7 +11,7 @@ class VectorSearchResult(BaseModel):
 
 
 class SourceFileDto(BaseModel):
-    id: int
+    id: str
     file_path: str
     file_name: str
     content_type: str

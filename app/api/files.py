@@ -37,7 +37,7 @@ class ConfirmUploadRequest(BaseModel):
     file_name: str = Field(..., alias="fileName")
 
 
-@router.post("/{workspace_id}/confirm-upload", response_model=SourceFileDto)
+@router.post("/{workspace_id}/confirm-upload", response_model=bool)
 async def confirm_blob_upload(
     workspace_id: str, request: ConfirmUploadRequest, background_tasks: BackgroundTasks
 ):
@@ -52,13 +52,7 @@ async def confirm_blob_upload(
             replace_existing=True,
         )
 
-        return SourceFileDto(
-            id=request.blob_name,
-            name=request.file_name,
-            blob_name=request.blob_name,
-            workspace_id=workspace_id,
-        )
-
+        return True
     except HTTPException:
         raise
     except Exception as e:
