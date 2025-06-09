@@ -36,7 +36,7 @@ def upgrade() -> None:
 
     op.create_table(
         "workspaces",
-        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
@@ -44,9 +44,9 @@ def upgrade() -> None:
     )
     op.create_table(
         "chats",
-        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("workspace_id", sa.String(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(
@@ -57,10 +57,10 @@ def upgrade() -> None:
     )
     op.create_table(
         "generated_contents",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("type", sa.String(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("workspace_id", sa.String(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(
@@ -71,11 +71,11 @@ def upgrade() -> None:
     )
     op.create_table(
         "source_files",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("file_path", sa.Text(), nullable=False),
         sa.Column("file_name", sa.String(length=255), nullable=False),
         sa.Column("content_type", sa.String(length=100), nullable=False),
-        sa.Column("workspace_id", sa.String(length=255), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("file_size", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(
@@ -83,12 +83,11 @@ def upgrade() -> None:
             ["workspaces.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("file_path"),
     )
     op.create_table(
         "messages",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("chat_id", sa.String(), nullable=False),
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("chat_id", sa.UUID(), nullable=False),
         sa.Column("role", sa.String(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
@@ -100,8 +99,8 @@ def upgrade() -> None:
     )
     op.create_table(
         "vectors",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("source_file_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("source_file_id", sa.UUID(), nullable=False),
         sa.Column("vector_data", pgvector.sqlalchemy.Vector(dim=1536), nullable=False),
         sa.Column("content_text", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
