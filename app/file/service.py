@@ -54,9 +54,11 @@ class FileService:
                 logger.info(f"File already exists: {file_name}")
                 return
 
-            blob_client = azure_blob_service._get_blob_client(file_name)
+            blob_client = azure_blob_service._get_blob_client(file_path)
 
             file_content = blob_client.download_blob().readall()
+            blob_props = blob_client.get_blob_properties()
+            file_size = blob_props.size if blob_props else None
 
             logger.info(f"Downloaded file: {file_name}")
 
@@ -72,6 +74,7 @@ class FileService:
             await rag_service.insert_document_with_chunks(
                 file_path=file_path,
                 file_name=file_name,
+                file_size=file_size,
                 content_type=content_type,
                 workspace_id=workspace_id,
                 text_chunks=text_chunks,

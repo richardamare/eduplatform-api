@@ -7,6 +7,8 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
+from sqlalchemy.sql import text
+
 from app.file.db import VectorDB, SourceFileDB
 from app.file.model import VectorSearchResult
 
@@ -145,8 +147,7 @@ class SourceFileRepository:
                 content_type=payload.content_type,
                 workspace_id=payload.workspace_id,
                 file_size=payload.file_size,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(),
             )
             self.db.add(source_file)
             await self.db.commit()
@@ -156,7 +157,7 @@ class SourceFileRepository:
             logger.error(f"Error creating source file: {e}")
             raise e
 
-    async def get_by_workspace(self, workspace_id: str) -> List[SourceFileDB]:
+    async def get_by_workspace(self, workspace_id: uuid.UUID) -> List[SourceFileDB]:
         try:
             result = await self.db.execute(
                 select(SourceFileDB).where(SourceFileDB.workspace_id == workspace_id)
@@ -167,6 +168,10 @@ class SourceFileRepository:
                     id=source_file.id,
                     file_path=source_file.file_path,
                     file_name=source_file.file_name,
+                    content_type=source_file.content_type,
+                    workspace_id=source_file.workspace_id,
+                    file_size=source_file.file_size,
+                    created_at=source_file.created_at,
                 )
                 for source_file in source_files
             ]

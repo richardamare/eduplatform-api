@@ -1,10 +1,11 @@
+import uuid
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
 
 class VectorSearchResult(BaseModel):
-    vector_id: int
+    vector_id: uuid.UUID
     file_path: str
     content_text: str
     similarity: float

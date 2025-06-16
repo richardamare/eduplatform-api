@@ -58,10 +58,10 @@ class AzureBlobService:
             logger.error("Azure Blob Storage not configured")
             raise ValueError("Azure Blob Storage not configured")
 
-    def _get_blob_client(self, blob_name: str) -> BlobClient:
+    def _get_blob_client(self, file_path: str) -> BlobClient:
         """Get a blob client for the given blob name"""
         return self.blob_service_client.get_blob_client(
-            container=settings.azure_storage_container_name, blob=blob_name
+            container=settings.azure_storage_container_name, blob=file_path
         )
 
     def generate_unique_blob_name(self, filename: str, workspace_id: str) -> str:

@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional
+import uuid
 from sqlalchemy import text
 from openai import AsyncAzureOpenAI
 
@@ -90,7 +91,7 @@ class RAGService:
                     file_name=file_name,
                     file_path=file_path,
                     content_type=content_type,
-                    workspace_id=workspace_id,
+                    workspace_id=uuid.UUID(workspace_id),
                     file_size=file_size,
                 )
             )
@@ -108,11 +109,11 @@ class RAGService:
 
         # Return SourceFileDto with chunks count
         return SourceFileDto(
-            id=source_file.id,
+            id=str(source_file.id),
             file_path=source_file.file_path,
             file_name=source_file.file_name,
             content_type=source_file.content_type,
-            workspace_id=source_file.workspace_id,
+            workspace_id=str(source_file.workspace_id),
             file_size=source_file.file_size,
             created_at=source_file.created_at,
             chunks_count=len(text_chunks),
@@ -144,15 +145,17 @@ class RAGService:
     ) -> List[SourceFileDto]:
         """Get all source files for a workspace."""
 
-        source_files = await self.source_file_repository.get_by_workspace(workspace_id)
+        source_files = await self.source_file_repository.get_by_workspace(
+            uuid.UUID(workspace_id)
+        )
 
         return [
             SourceFileDto(
-                id=sf.id,
+                id=str(sf.id),
                 file_path=sf.file_path,
                 file_name=sf.file_name,
                 content_type=sf.content_type,
-                workspace_id=sf.workspace_id,
+                workspace_id=str(sf.workspace_id),
                 file_size=sf.file_size,
                 created_at=sf.created_at,
                 chunks_count=None,
@@ -167,11 +170,11 @@ class RAGService:
 
         return [
             SourceFileDto(
-                id=sf.id,
+                id=str(sf.id),
                 file_path=sf.file_path,
                 file_name=sf.file_name,
                 content_type=sf.content_type,
-                workspace_id=sf.workspace_id,
+                workspace_id=str(sf.workspace_id),
                 file_size=sf.file_size,
                 created_at=sf.created_at,
                 chunks_count=None,
