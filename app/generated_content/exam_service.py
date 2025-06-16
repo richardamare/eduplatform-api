@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.database import async_session
 from app.config import settings
 from app.generated_content.constant import EXAM_SYSTEM_PROMPT
-from app.generated_content.model import ExamDto
+from app.generated_content.model import ExamDto, TestQuestionDto
 from app.azure.openai_service import AIMessage, azure_openai_service
 from app.generated_content.repository import ExamRepository
 from app.generated_content.db import GeneratedContentDB
@@ -21,9 +21,10 @@ class ExamQuestion(BaseModel):
     """A question for an exam"""
 
     question: str = Field(..., description="The question text")
-    answers: Dict[Literal["A", "B", "C", "D"], str] = Field(
-        ..., description="The four answer options"
-    )
+    answerA: str = Field(..., description="The first answer option")
+    answerB: str = Field(..., description="The second answer option")
+    answerC: str = Field(..., description="The third answer option")
+    answerD: str = Field(..., description="The fourth answer option")
     correct_answer: str = Field(..., description="The key to the correct answer")
 
 
@@ -76,13 +77,12 @@ class ExamService:
             ]
 
             # type: ignore
-            response = await self.client.chat.completions.create(
+            response = await self.client.beta.chat.completions.parse(
                 model=settings.azure_openai_chat_model,
                 messages=azure_openai_service.convert_to_completion_messages(messages),
                 response_format=ExamQuestionGenerationResponse,
                 temperature=0.7,
                 max_tokens=4000,
-                stream=False,
             )
 
             if isinstance(response, AsyncStream):
@@ -99,7 +99,7 @@ class ExamService:
             )
 
             # Save exam to database
-            await self.repository.create(
+            generated_content = await self.repository.create(
                 GeneratedContentDB(
                     type="exam",
                     content=exam_data.model_dump_json(),
@@ -107,12 +107,7 @@ class ExamService:
                 )
             )
 
-            return ExamDto(
-                test_questions=exam_data.exam_questions,
-                total_count=len(exam_data.exam_questions),
-                topic=exam_data.topic,
-                workspace_id=workspace_id,
-            )
+            return self._map_generated_content_to_dto(generated_content)
         except Exception as e:
             logger.error(f"Error generating exam: {e}")
             raise e
@@ -137,9 +132,23 @@ class ExamService:
             generated_content.content
         )
 
+        items: list[TestQuestionDto] = [
+            TestQuestionDto(
+                question=item.question,
+                answers={
+                    "A": item.answerA,
+                    "B": item.answerB,
+                    "C": item.answerC,
+                    "D": item.answerD,
+                },
+                correct_answer=item.correct_answer,
+            )
+            for item in item_data.exam_questions
+        ]
+
         return ExamDto(
-            test_questions=item_data.exam_questions,
-            total_count=len(item_data.exam_questions),
+            items=items,
+            total_count=len(items),
             topic=item_data.topic,
             workspace_id=generated_content.workspace_id,
         )

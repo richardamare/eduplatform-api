@@ -1,3 +1,4 @@
+import uuid
 from pydantic import BaseModel
 from typing import Dict, List, Literal
 
@@ -11,7 +12,7 @@ class FlashcardDto(BaseModel):
     items: List[FlashcardItemDto]
     total_count: int
     topic: str
-    workspace_id: str
+    workspace_id: uuid.UUID
 
 
 class TestQuestionDto(BaseModel):
@@ -21,7 +22,7 @@ class TestQuestionDto(BaseModel):
 
 
 class ExamDto(BaseModel):
-    test_questions: List[TestQuestionDto]
+    items: List[TestQuestionDto]
     total_count: int
     topic: str
-    workspace_id: str
+    workspace_id: uuid.UUID

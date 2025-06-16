@@ -8,7 +8,7 @@ from app.config import settings
 from app.database import async_session
 from app.azure.openai_service import AIMessage, azure_openai_service
 from app.generated_content.db import GeneratedContentDB
-from app.generated_content.model import FlashcardDto
+from app.generated_content.model import FlashcardDto, FlashcardItemDto
 from app.generated_content.repository import FlashcardRepository
 from app.generated_content.constant import FLASHCARD_SYSTEM_PROMPT
 
@@ -61,13 +61,12 @@ class FlashcardService:
             ]
 
             # type: ignore
-            response = await self.client.chat.completions.create(
+            response = await self.client.beta.chat.completions.parse(
                 model=settings.azure_openai_chat_model,
                 messages=azure_openai_service.convert_to_completion_messages(messages),
                 response_format=FlashcardGenerationResponse,
                 temperature=0.7,
                 max_tokens=4000,
-                stream=False,
             )
 
             if isinstance(response, AsyncStream):
@@ -84,7 +83,7 @@ class FlashcardService:
             )
 
             # Save flashcards to database
-            await self.repository.create(
+            generated_content = await self.repository.create(
                 GeneratedContentDB(
                     type="flashcard",
                     content=flashcard_data.model_dump_json(),
@@ -92,12 +91,7 @@ class FlashcardService:
                 )
             )
 
-            return FlashcardDto(
-                items=flashcard_data.items,
-                total_count=len(flashcard_data.items),
-                topic=flashcard_data.topic,
-                workspace_id=workspace_id,
-            )
+            return self._map_generated_content_to_dto(generated_content)
         except Exception as e:
             logger.error(f"Error generating flashcards: {e}")
             raise e
@@ -124,9 +118,21 @@ class FlashcardService:
             generated_content.content
         )
 
+        print(item_data)
+
+        items = [
+            FlashcardItemDto(
+                question=item.question,
+                answer=item.answer,
+            )
+            for item in item_data.items
+        ]
+
+        print(items)
+
         return FlashcardDto(
-            items=item_data.items,
-            total_count=len(item_data.items),
+            items=items,
+            total_count=len(items),
             topic=item_data.topic,
             workspace_id=generated_content.workspace_id,
         )
